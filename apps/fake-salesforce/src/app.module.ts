@@ -1,12 +1,18 @@
 import { Module, type MiddlewareConsumer, type NestModule } from '@nestjs/common';
-import { APP_FILTER } from '@nestjs/core';
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { validateFakeSalesforceEnv } from './env';
 import { HealthModule } from './health/health.module';
 import { CorrelationMiddleware } from './http/correlation.middleware';
 import { SalesforceExceptionFilter } from './http/salesforce-exception.filter';
 import { logging } from './logging';
+import { PrismaModule } from './prisma/prisma.module';
 import { RecordsModule } from './records/records.module';
+import { DataPlaneInterceptor } from './simulator/data-plane.interceptor';
+import { SimulatorController } from './simulator/simulator.controller';
+import { SimulatorGuard } from './simulator/simulator.guard';
+import { SimulatorModule } from './simulator/simulator.module';
+import { WebhookModule } from './webhook/webhook.module';
 
 @Module({
   imports: [
@@ -17,13 +23,22 @@ import { RecordsModule } from './records/records.module';
       validate: validateFakeSalesforceEnv,
     }),
     logging,
+    PrismaModule,
+    WebhookModule,
     HealthModule,
     RecordsModule,
+    SimulatorModule,
   ],
-  providers: [CorrelationMiddleware, { provide: APP_FILTER, useClass: SalesforceExceptionFilter }],
+  providers: [
+    CorrelationMiddleware,
+    SimulatorGuard,
+    { provide: APP_FILTER, useClass: SalesforceExceptionFilter },
+    { provide: APP_INTERCEPTOR, useClass: DataPlaneInterceptor },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
     consumer.apply(CorrelationMiddleware).forRoutes('{*splat}');
+    consumer.apply(SimulatorGuard).forRoutes(SimulatorController);
   }
 }

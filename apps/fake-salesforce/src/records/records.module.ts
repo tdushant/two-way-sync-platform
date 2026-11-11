@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';
+import { WebhookModule } from '../webhook/webhook.module';
 import { AccountsController } from './accounts.controller';
 import { AccountsService } from './accounts.service';
 import { ChangesController } from './changes.controller';
@@ -8,7 +9,7 @@ import { ContactsController } from './contacts.controller';
 import { ContactsService } from './contacts.service';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, WebhookModule],
   controllers: [AccountsController, ContactsController, ChangesController],
   providers: [AccountsService, ContactsService, ChangesService],
 })

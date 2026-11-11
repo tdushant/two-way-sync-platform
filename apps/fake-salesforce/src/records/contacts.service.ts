@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { CreateSfContact, SfContactPatch } from '@sync/contracts';
 import { requestError } from '../http/salesforce-request.error';
 import { PrismaService } from '../prisma/prisma.service';
+import { Clock } from '../webhook/clock';
 import type { WriteContext } from './accounts.service';
 import { Ids } from './ids';
 import {
@@ -34,6 +35,7 @@ export class ContactsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ids: Ids,
+    private readonly clock: Clock,
   ) {}
 
   async create(body: CreateSfContact, context: WriteContext): Promise<StoredResponse> {
@@ -80,7 +82,7 @@ export class ContactsService {
       throw requestError(context.correlationId, 404, 'Account not found');
     }
     const id = this.ids.contactId();
-    const now = new Date();
+    const now = this.clock.now();
     const stored = {
       accountId: body.accountId,
       fullName: body.fullName ?? null,
@@ -100,6 +102,7 @@ export class ContactsService {
       changedBy: context.changedBy,
       originOperationId: context.operationId,
       now,
+      enqueuedAt: now,
     });
     const view = toContact({ id, ...stored, version: 1n, systemModstamp: now });
     if (context.operationId) {
@@ -148,11 +151,11 @@ export class ContactsService {
     if (changes.length === 0) {
       const view = toContact(row);
       if (context.operationId) {
-        await saveReplay(tx, context.operationId, hash, 200, view, id, new Date());
+        await saveReplay(tx, context.operationId, hash, 200, view, id, this.clock.now());
       }
       return { status: 200, body: view };
     }
-    const now = new Date();
+    const now = this.clock.now();
     const next = row.version + 1n;
     const data: {
       accountId?: string;
@@ -197,6 +200,7 @@ export class ContactsService {
       changedBy: context.changedBy,
       originOperationId: context.operationId,
       now,
+      enqueuedAt: now,
     });
     const view = toContact(await tx.sfContact.findUniqueOrThrow({ where: { id } }));
     if (context.operationId) {

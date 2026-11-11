@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { Prisma } from '../../generated/prisma/client';
 import { requestError } from '../http/salesforce-request.error';
+import { readSimulatorConfig } from '../simulator/simulator-config';
+import { DELIVERY_DROPPED, DELIVERY_PENDING } from '../webhook/delivery-policy';
 import type { Ids } from './ids';
 
 export type SalesforceTx = Prisma.TransactionClient;
@@ -118,29 +120,77 @@ export async function appendChange(
     changedBy: string | null;
     originOperationId: string | null;
     now: Date;
+    enqueuedAt: Date;
   },
-): Promise<void> {
+): Promise<{ eventId: string; sequence: bigint }> {
   if (input.changes.length === 0) {
     throw new Error('A change-log row requires an actual field difference');
   }
-  const values: Record<string, string | null> = {};
-  for (const change of input.changes) {
-    values[change.field] = change.newValue;
+  const changedFields: Record<string, string | null> = {};
+  for (const change of [...input.changes].sort((left, right) =>
+    left.field.localeCompare(right.field),
+  )) {
+    changedFields[change.field] = change.newValue;
   }
-  const changedFields = { ...values } as Prisma.InputJsonValue;
-  const storedValues = { ...values } as Prisma.InputJsonValue;
-  await tx.sfChangeLog.create({
+  const stored = changedFields as Prisma.InputJsonValue;
+  const eventId = ids.eventId();
+  const created = await tx.sfChangeLog.create({
     data: {
-      eventId: ids.eventId(),
+      eventId,
       objectType: input.objectType,
       recordId: input.recordId,
-      changedFields,
+      changedFields: stored,
       changedBy: input.changedBy,
-      values: storedValues,
+      values: stored,
       version: BigInt(input.version),
       occurredAt: input.now,
       originOperationId: input.originOperationId,
     },
+    select: { sequence: true },
+  });
+  await enqueueDelivery(tx, {
+    eventId,
+    sequence: created.sequence,
+    enqueuedAt: input.enqueuedAt,
+    envelope: {
+      eventId,
+      objectType: input.objectType,
+      recordId: input.recordId,
+      eventType: input.version === 1 ? 'created' : 'updated',
+      changedFields,
+      changedBy: input.changedBy,
+      recordVersion: input.version,
+      occurredAt: input.now.toISOString(),
+      originOperationId: input.originOperationId,
+      changeSequence: versionNumber(created.sequence),
+    },
+  });
+  return { eventId, sequence: created.sequence };
+}
+
+async function enqueueDelivery(
+  tx: SalesforceTx,
+  input: {
+    eventId: string;
+    sequence: bigint;
+    enqueuedAt: Date;
+    envelope: Record<string, unknown>;
+  },
+): Promise<void> {
+  const config = await readSimulatorConfig(tx);
+  const copies = 1 + Math.max(0, config.duplicateCount);
+  const scheduledAt = new Date(input.enqueuedAt.getTime() + config.delayMs);
+  const payload = input.envelope as Prisma.InputJsonValue;
+  await tx.sfWebhookDelivery.createMany({
+    data: Array.from({ length: copies }, () => ({
+      changeSequence: input.sequence,
+      eventId: input.eventId,
+      payload,
+      attempts: 0,
+      scheduledAt,
+      status: config.dropWebhookRate >= 1 ? DELIVERY_DROPPED : DELIVERY_PENDING,
+      createdAt: input.enqueuedAt,
+    })),
   });
 }
 

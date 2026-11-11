@@ -29,10 +29,12 @@ describe('fake salesforce account and contact writes', () => {
     app = moduleRef.createNestApplication();
     await app.init();
     prisma = app.get(PrismaService);
+    await prisma.client.sfSimulatorConfig.deleteMany();
   });
 
   afterAll(async () => {
     if (prisma) {
+      await prisma.client.sfApiRequestLog.deleteMany();
       await prisma.client.$executeRaw`
         DELETE FROM sf_webhook_deliveries
         WHERE event_id = ${BLOCKED_EVENT}::uuid
@@ -129,9 +131,15 @@ describe('fake salesforce account and contact writes', () => {
       changeSequence: Number(log[0]?.sequence),
     };
     expect(parseWebhook(envelope, CORRELATION_ID).ok).toBe(true);
-    expect(
-      await prisma.client.sfWebhookDelivery.count({ where: { eventId: log[0]?.eventId } }),
-    ).toBe(0);
+    const deliveries = await prisma.client.sfWebhookDelivery.findMany({
+      where: { eventId: log[0]?.eventId },
+    });
+    expect(deliveries).toHaveLength(1);
+    expect(deliveries[0]).toMatchObject({
+      status: 'PENDING',
+      attempts: 0,
+      changeSequence: log[0]?.sequence,
+    });
 
     const read = await request(app.getHttpServer()).get(`/sf/v1/accounts/${id}`);
     expect(read.status).toBe(200);
@@ -220,6 +228,11 @@ describe('fake salesforce account and contact writes', () => {
     expect(again.body.version).toBe(2);
     expect(again.body.systemModstamp).toBe(cleared.body.systemModstamp);
     expect(await prisma.client.sfChangeLog.count({ where: { recordId: id } })).toBe(2);
+    expect(
+      await prisma.client.sfWebhookDelivery.count({
+        where: { changeSequence: { in: log.map((row) => row.sequence) } },
+      }),
+    ).toBe(2);
   });
 
   it('requires an account for a contact and writes one log row per logical change', async () => {

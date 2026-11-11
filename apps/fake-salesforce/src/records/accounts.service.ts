@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { AccountPatch, CreateAccount } from '@sync/contracts';
 import { requestError } from '../http/salesforce-request.error';
 import { PrismaService } from '../prisma/prisma.service';
+import { Clock } from '../webhook/clock';
 import { Ids } from './ids';
 import {
   appendChange,
@@ -31,6 +32,7 @@ export class AccountsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ids: Ids,
+    private readonly clock: Clock,
   ) {}
 
   async create(body: CreateAccount, context: WriteContext): Promise<StoredResponse> {
@@ -74,7 +76,7 @@ export class AccountsService {
       }
     }
     const id = this.ids.accountId();
-    const now = new Date();
+    const now = this.clock.now();
     const stored = {
       name: body.name,
       status: body.status ?? null,
@@ -97,6 +99,7 @@ export class AccountsService {
       changedBy: context.changedBy,
       originOperationId: context.operationId,
       now,
+      enqueuedAt: now,
     });
     const view = toAccount({ id, ...stored, version: 1n, systemModstamp: now });
     if (context.operationId) {
@@ -129,11 +132,11 @@ export class AccountsService {
     if (changes.length === 0) {
       const view = toAccount(row);
       if (context.operationId) {
-        await saveReplay(tx, context.operationId, hash, 200, view, id, new Date());
+        await saveReplay(tx, context.operationId, hash, 200, view, id, this.clock.now());
       }
       return { status: 200, body: view };
     }
-    const now = new Date();
+    const now = this.clock.now();
     const next = row.version + 1n;
     const data: {
       name?: string;
@@ -170,6 +173,7 @@ export class AccountsService {
       changedBy: context.changedBy,
       originOperationId: context.operationId,
       now,
+      enqueuedAt: now,
     });
     const view = toAccount(await tx.sfAccount.findUniqueOrThrow({ where: { id } }));
     if (context.operationId) {

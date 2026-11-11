@@ -9,7 +9,7 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.createApplicationContext(AppModule, { bufferLogs: true });
   const logger = app.get(Logger);
   app.useLogger(logger);
-  app.get(OutboundWorker).start();
+  await app.get(OutboundWorker).start();
   const correlationId = randomUUID();
   logger.log({ correlationId, message: 'portal-worker started' });
 

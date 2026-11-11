@@ -105,11 +105,17 @@ model SyncOperation {
 }
 
 model ApiQuotaBucket {
-  bucket               String   @id
-  tokens               BigInt
-  maxTokens            BigInt   @map("max_tokens")
-  refillPerSecondMilli BigInt   @map("refill_per_second_milli")
-  updatedAt            DateTime @map("updated_at") @db.Timestamptz(6)
+  bucket                     String    @id
+  tokens                     BigInt
+  maxTokens                  BigInt    @map("max_tokens")
+  refillPerSecondMilli       BigInt    @map("refill_per_second_milli")
+  updatedAt                  DateTime  @map("updated_at") @db.Timestamptz(6)
+  blockedUntil               DateTime? @map("blocked_until") @db.Timestamptz(6)
+  grantedTotal               BigInt    @default(0) @map("granted_total")
+  deniedTotal                BigInt    @default(0) @map("denied_total")
+  outboundGrantedTotal       BigInt    @default(0) @map("outbound_granted_total")
+  reconciliationGrantedTotal BigInt    @default(0) @map("reconciliation_granted_total")
+  retryAfterTotal            BigInt    @default(0) @map("retry_after_total")
 
   @@map("api_quota_buckets")
 }

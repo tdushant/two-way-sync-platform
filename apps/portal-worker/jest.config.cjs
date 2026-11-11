@@ -4,5 +4,6 @@ module.exports = {
   testEnvironment: 'node',
   rootDir: 'src',
   testRegex: '\\.spec\\.ts$',
+  maxWorkers: 1,
   setupFiles: ['<rootDir>/jest.setup.ts'],
 };

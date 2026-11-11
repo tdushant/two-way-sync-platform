@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import { Test } from '@nestjs/testing';
 import { AppModule } from '../app.module';
+import { ExternalApiBudget } from '../budget/external-api-budget';
 import { ManualClock } from '../clock';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -20,6 +21,7 @@ describe('portal outbound worker', () => {
   let prisma: PrismaService;
   let clock: ManualClock;
   let client: RecordingClient;
+  let budget: ExternalApiBudget;
   let worker: OutboundWorker;
 
   beforeAll(async () => {
@@ -29,7 +31,8 @@ describe('portal outbound worker', () => {
     prisma = compiled.get(PrismaService);
     clock = new ManualClock(new Date('2026-11-12T00:00:00.000Z'));
     client = new RecordingClient(prisma);
-    worker = new OutboundWorker(prisma, clock, client, () => 0, SCOPE);
+    budget = new ExternalApiBudget(prisma);
+    worker = new OutboundWorker(prisma, clock, client, () => 0, budget, 80, SCOPE);
     await cleanup(prisma);
     await setQuota(prisma, clock, 1000n, 1000n, 1_000_000n);
   });
@@ -63,7 +66,7 @@ describe('portal outbound worker', () => {
       dueOffsetMs: 0,
       externalId: 'SF-WK-crash',
     });
-    const second = new OutboundWorker(prisma, clock, client, () => 0, SCOPE);
+    const second = new OutboundWorker(prisma, clock, client, () => 0, budget, 80, SCOPE);
     expect(await worker.claimDue()).toHaveLength(1);
     expect(client.calls).toHaveLength(0);
     const held = await prisma.client.outboxEvent.findFirstOrThrow({ where: { operationId } });
@@ -386,7 +389,8 @@ describe('portal outbound worker', () => {
     await setQuota(prisma, clock, 1n, 1n, 0n);
     worker.batchSize = 1;
     const otherClient = new RecordingClient(prisma);
-    const other = new OutboundWorker(prisma, clock, otherClient, () => 0, SCOPE);
+    const otherBudget = new ExternalApiBudget(prisma);
+    const other = new OutboundWorker(prisma, clock, otherClient, () => 0, otherBudget, 80, SCOPE);
     other.batchSize = 1;
     await worker.flush();
     await other.flush();
@@ -406,6 +410,49 @@ describe('portal outbound worker', () => {
     expect(
       (await prisma.client.outboxEvent.findFirstOrThrow({ where: { operationId: second } })).status,
     ).toBe('COMPLETED');
+  });
+
+  it('keeps two concurrent worker flushes inside one shared token count', async () => {
+    const ids: string[] = [];
+    for (let index = 0; index < 6; index += 1) {
+      const id = await insertCustomer(prisma, clock, {
+        name: `wkx Burst ${index}`,
+        salesforceId: `SF-WK-burst-${index}`,
+      });
+      ids.push(id);
+      await insertOutbox(prisma, clock, {
+        entityType: 'customer',
+        entityId: id,
+        eventType: 'updated',
+        changedFields: { name: `wkx Burst ${index}` },
+        versions: { name: '1' },
+        dueOffsetMs: 0,
+        externalId: `SF-WK-burst-${index}`,
+      });
+    }
+    await setQuota(prisma, clock, 2n, 2n, 0n);
+    worker.batchSize = 6;
+    const otherClient = new RecordingClient(prisma);
+    const other = new OutboundWorker(
+      prisma,
+      clock,
+      otherClient,
+      () => 0,
+      new ExternalApiBudget(prisma),
+      80,
+      SCOPE,
+    );
+    other.batchSize = 6;
+    await Promise.all([worker.flush(), other.flush()]);
+    expect(client.calls.length + otherClient.calls.length).toBe(2);
+    const rows = await prisma.client.outboxEvent.findMany({ where: { entityId: { in: ids } } });
+    expect(rows.filter((row) => row.status === 'COMPLETED')).toHaveLength(2);
+    expect(rows.filter((row) => row.status === 'RETRY' && row.lastError === 'quota')).toHaveLength(
+      4,
+    );
+    expect(rows.some((row) => row.status === 'DEAD' || row.status === 'IN_FLIGHT')).toBe(false);
+    const sent = new Set([...client.calls, ...otherClient.calls].map((call) => call.operationId));
+    expect(sent.size).toBe(2);
   });
 });
 
@@ -556,7 +603,7 @@ async function setQuota(
 ): Promise<void> {
   await prisma.client.apiQuotaBucket.update({
     where: { bucket: QUOTA_BUCKET },
-    data: { tokens, maxTokens, refillPerSecondMilli, updatedAt: clock.now() },
+    data: { tokens, maxTokens, refillPerSecondMilli, updatedAt: clock.now(), blockedUntil: null },
   });
 }
 

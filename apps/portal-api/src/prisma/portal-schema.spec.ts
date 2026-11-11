@@ -26,6 +26,7 @@ const TIMESTAMP_COLUMNS = [
   ['reconciliation_runs', 'completed_at'],
   ['client_idempotency_keys', 'created_at'],
   ['api_quota_buckets', 'updated_at'],
+  ['api_quota_buckets', 'blocked_until'],
 ] as const;
 
 function portalDatabaseUrl(): string {
@@ -98,7 +99,7 @@ describe('portal database schema', () => {
        FROM information_schema.columns
        WHERE table_schema = 'public'
          AND table_name = ANY($1::text[])
-         AND (column_name LIKE '%\\_at' OR column_name = 'lease_until')
+         AND (column_name LIKE '%\\_at' OR column_name IN ('lease_until', 'blocked_until'))
        ORDER BY table_name, column_name`,
       [TIMESTAMP_COLUMNS.map(([table]) => table)],
     );

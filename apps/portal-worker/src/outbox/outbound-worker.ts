@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Logger } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
+import { ExternalApiBudget } from '../budget/external-api-budget';
 import type { Clock } from '../clock';
 import type { PrismaService } from '../prisma/prisma.service';
 import {
@@ -13,7 +14,6 @@ import {
   LEASE_MS,
   PARENT_WAIT_MS,
   POLL_MS,
-  QUOTA_BUCKET,
   QUOTA_WAIT_MS,
   backoffMs,
   baseFieldVersions,
@@ -74,10 +74,13 @@ export class OutboundWorker {
     private readonly clock: Clock,
     private readonly salesforce: SalesforceClient,
     private readonly jitter: Jitter,
+    private readonly budget: ExternalApiBudget,
+    private readonly budgetPerSecond: number,
     private readonly scopePrefix: string | null,
   ) {}
 
-  start(): void {
+  async start(): Promise<void> {
+    await this.budget.configure(this.budgetPerSecond, this.clock.now());
     if (this.timer !== undefined) {
       return;
     }
@@ -181,9 +184,9 @@ export class OutboundWorker {
         await this.kill(row, prepared.reason, now);
         return;
       }
-      const allowed = await this.takeToken(now);
-      if (!allowed) {
-        await this.reschedule(row, 'quota', QUOTA_WAIT_MS, now);
+      const decision = await this.budget.acquire(now, 'outbound');
+      if (!decision.granted) {
+        await this.reschedule(row, 'quota', decision.retryAfterMs, now);
         return;
       }
       const result = await this.salesforce.send({
@@ -246,6 +249,9 @@ export class OutboundWorker {
   ): Promise<void> {
     const kind = classifyStatus(result.status);
     if (kind === 'retry') {
+      if (result.status === 429) {
+        await this.budget.observeRetryAfter(now, result.retryAfterSeconds);
+      }
       const delay =
         result.status === 429
           ? retryDelayMs(row.attempts, this.jitter(), result.retryAfterSeconds)
@@ -380,51 +386,6 @@ export class OutboundWorker {
       });
     });
     this.logger.log({ operationId: row.operationId, outcome: reason });
-  }
-
-  private async takeToken(now: Date): Promise<boolean> {
-    return this.prisma.client.$transaction(async (tx) => {
-      const rows = await tx.$queryRaw<
-        Array<{
-          tokens: bigint;
-          max_tokens: bigint;
-          refill_per_second_milli: bigint;
-          updated_at: Date;
-        }>
-      >`
-        SELECT tokens, max_tokens, refill_per_second_milli, updated_at
-        FROM api_quota_buckets
-        WHERE bucket = ${QUOTA_BUCKET}
-        FOR UPDATE
-      `;
-      const row = rows[0];
-      if (!row) {
-        throw new Error('external_api quota bucket is missing');
-      }
-      const elapsed = BigInt(Math.max(0, now.getTime() - row.updated_at.getTime()));
-      const refilled = (elapsed * row.refill_per_second_milli) / 1_000_000n;
-      let tokens = row.tokens + refilled;
-      if (tokens > row.max_tokens) {
-        tokens = row.max_tokens;
-      }
-      if (tokens < 1n) {
-        if (refilled > 0n) {
-          await tx.$executeRaw`
-            UPDATE api_quota_buckets
-            SET tokens = ${tokens}, updated_at = ${now}
-            WHERE bucket = ${QUOTA_BUCKET}
-          `;
-        }
-        return false;
-      }
-      tokens -= 1n;
-      await tx.$executeRaw`
-        UPDATE api_quota_buckets
-        SET tokens = ${tokens}, updated_at = ${now}
-        WHERE bucket = ${QUOTA_BUCKET}
-      `;
-      return true;
-    });
   }
 
   private async loadEntity(row: Claimed): Promise<EntityState | undefined> {

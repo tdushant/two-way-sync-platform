@@ -1,12 +1,16 @@
-import { Expose, plainToInstance } from 'class-transformer';
+import { Expose, Type, plainToInstance } from 'class-transformer';
 import {
   IsIn,
+  IsInt,
+  Max,
+  Min,
   Validate,
   ValidationError,
   ValidatorConstraint,
   ValidatorConstraintInterface,
   validateSync,
 } from 'class-validator';
+import { SALESFORCE_API_CAP_PER_SECOND } from './budget/external-api-budget';
 
 @ValidatorConstraint({ name: 'postgresUrl', async: false })
 class PostgresUrlConstraint implements ValidatorConstraintInterface {
@@ -64,12 +68,20 @@ class PortalWorkerEnvironment {
   @Expose()
   @Validate(HttpUrlConstraint)
   FAKE_SALESFORCE_BASE_URL!: string;
+
+  @Expose()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(SALESFORCE_API_CAP_PER_SECOND)
+  OUTBOUND_BUDGET_PER_SECOND!: number;
 }
 
 export interface PortalWorkerEnv {
   NODE_ENV: 'development' | 'test' | 'production';
   PORTAL_DATABASE_URL: string;
   FAKE_SALESFORCE_BASE_URL: string;
+  OUTBOUND_BUDGET_PER_SECOND: number;
 }
 
 function formatValidationErrors(errors: ValidationError[]): string {
@@ -82,6 +94,13 @@ function formatValidationErrors(errors: ValidationError[]): string {
     .join('; ');
 }
 
+function filled(value: unknown, fallback: string): unknown {
+  if (value === undefined || value === '') {
+    return fallback;
+  }
+  return value;
+}
+
 export function validatePortalWorkerEnv(config: Record<string, unknown>): PortalWorkerEnv {
   const nodeEnv = config['NODE_ENV'];
   const converted = plainToInstance(
@@ -89,6 +108,7 @@ export function validatePortalWorkerEnv(config: Record<string, unknown>): Portal
     {
       ...config,
       NODE_ENV: nodeEnv === undefined || nodeEnv === '' ? 'development' : nodeEnv,
+      OUTBOUND_BUDGET_PER_SECOND: filled(config['OUTBOUND_BUDGET_PER_SECOND'], '80'),
     },
     { excludeExtraneousValues: true, enableImplicitConversion: true },
   );
@@ -100,5 +120,6 @@ export function validatePortalWorkerEnv(config: Record<string, unknown>): Portal
     NODE_ENV: converted.NODE_ENV,
     PORTAL_DATABASE_URL: converted.PORTAL_DATABASE_URL,
     FAKE_SALESFORCE_BASE_URL: converted.FAKE_SALESFORCE_BASE_URL,
+    OUTBOUND_BUDGET_PER_SECOND: converted.OUTBOUND_BUDGET_PER_SECOND,
   };
 }

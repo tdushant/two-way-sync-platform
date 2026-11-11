@@ -15,6 +15,7 @@ describe('portal-api environment', () => {
       NODE_ENV: 'test',
       PORTAL_HTTP_PORT: 3000,
       PORTAL_DATABASE_URL: valid.PORTAL_DATABASE_URL,
+      WEBHOOK_HMAC_SECRET: 'local-webhook-secret',
     });
   });
 
@@ -49,6 +50,29 @@ describe('portal-api environment', () => {
       /PORTAL_HTTP_PORT/,
     );
     expect(() => validatePortalApiEnv({ ...valid, NODE_ENV: 'staging' })).toThrow(/NODE_ENV/);
+  });
+
+  it('requires a non-default webhook secret in production', () => {
+    expect(() =>
+      validatePortalApiEnv({
+        ...valid,
+        NODE_ENV: 'production',
+      }),
+    ).toThrow(/WEBHOOK_HMAC_SECRET/);
+    expect(() =>
+      validatePortalApiEnv({
+        ...valid,
+        NODE_ENV: 'production',
+        WEBHOOK_HMAC_SECRET: 'local-webhook-secret',
+      }),
+    ).toThrow(/WEBHOOK_HMAC_SECRET/);
+    expect(
+      validatePortalApiEnv({
+        ...valid,
+        NODE_ENV: 'production',
+        WEBHOOK_HMAC_SECRET: 'prod-secret',
+      }).WEBHOOK_HMAC_SECRET,
+    ).toBe('prod-secret');
   });
 
   it('keeps the example portal and salesforce databases on different users and ports', () => {

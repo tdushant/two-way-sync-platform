@@ -15,3 +15,4 @@ function portalDatabaseUrl(): string {
 process.env.NODE_ENV = 'test';
 process.env.PORTAL_HTTP_PORT = '3000';
 process.env.PORTAL_DATABASE_URL = portalDatabaseUrl();
+process.env.WEBHOOK_HMAC_SECRET = 'local-webhook-secret';

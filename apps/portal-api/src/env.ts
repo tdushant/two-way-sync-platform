@@ -2,8 +2,10 @@ import { Expose, Type, plainToInstance } from 'class-transformer';
 import {
   IsIn,
   IsInt,
+  IsString,
   Max,
   Min,
+  MinLength,
   Validate,
   ValidationError,
   ValidatorConstraint,
@@ -51,12 +53,18 @@ class PortalApiEnvironment {
   @Expose()
   @Validate(PostgresUrlConstraint)
   PORTAL_DATABASE_URL!: string;
+
+  @Expose()
+  @IsString()
+  @MinLength(1)
+  WEBHOOK_HMAC_SECRET!: string;
 }
 
 export interface PortalApiEnv {
   NODE_ENV: 'development' | 'test' | 'production';
   PORTAL_HTTP_PORT: number;
   PORTAL_DATABASE_URL: string;
+  WEBHOOK_HMAC_SECRET: string;
 }
 
 function formatValidationErrors(errors: ValidationError[]): string {
@@ -69,6 +77,8 @@ function formatValidationErrors(errors: ValidationError[]): string {
     .join('; ');
 }
 
+const LOCAL_WEBHOOK_HMAC_SECRET = 'local-webhook-secret';
+
 function filled(value: unknown, fallback: string): unknown {
   if (value === undefined || value === '') {
     return fallback;
@@ -77,12 +87,25 @@ function filled(value: unknown, fallback: string): unknown {
 }
 
 export function validatePortalApiEnv(config: Record<string, unknown>): PortalApiEnv {
+  const nodeEnv = filled(config['NODE_ENV'], 'development');
+  if (nodeEnv === 'production') {
+    const secret = config['WEBHOOK_HMAC_SECRET'];
+    if (secret === undefined || secret === '') {
+      throw new Error('Invalid environment: WEBHOOK_HMAC_SECRET: is required in production');
+    }
+    if (secret === LOCAL_WEBHOOK_HMAC_SECRET) {
+      throw new Error(
+        'Invalid environment: WEBHOOK_HMAC_SECRET: local default is not allowed in production',
+      );
+    }
+  }
   const converted = plainToInstance(
     PortalApiEnvironment,
     {
       ...config,
-      NODE_ENV: filled(config['NODE_ENV'], 'development'),
+      NODE_ENV: nodeEnv,
       PORTAL_HTTP_PORT: filled(config['PORTAL_HTTP_PORT'], '3000'),
+      WEBHOOK_HMAC_SECRET: filled(config['WEBHOOK_HMAC_SECRET'], LOCAL_WEBHOOK_HMAC_SECRET),
     },
     { excludeExtraneousValues: true, enableImplicitConversion: true },
   );
@@ -94,5 +117,6 @@ export function validatePortalApiEnv(config: Record<string, unknown>): PortalApi
     NODE_ENV: converted.NODE_ENV,
     PORTAL_HTTP_PORT: converted.PORTAL_HTTP_PORT,
     PORTAL_DATABASE_URL: converted.PORTAL_DATABASE_URL,
+    WEBHOOK_HMAC_SECRET: converted.WEBHOOK_HMAC_SECRET,
   };
 }

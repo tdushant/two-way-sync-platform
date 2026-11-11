@@ -10,6 +10,7 @@ import { HealthModule } from './health/health.module';
 import { ActorMiddleware } from './http/actor.middleware';
 import { CorrelationMiddleware } from './http/correlation.middleware';
 import { PortalExceptionFilter } from './http/portal-exception.filter';
+import { WebhooksModule } from './webhooks/webhooks.module';
 import { logging } from './logging';
 
 @Module({
@@ -24,6 +25,7 @@ import { logging } from './logging';
     HealthModule,
     CustomersModule,
     ContactsModule,
+    WebhooksModule,
   ],
   providers: [
     CorrelationMiddleware,

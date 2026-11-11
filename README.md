@@ -18,6 +18,8 @@ docker compose up -d
 docker compose down
 pnpm --filter portal-api db:migrate
 pnpm --filter portal-api db:seed
+pnpm --filter fake-salesforce db:migrate
+pnpm --filter fake-salesforce db:seed
 ```
 
 Run one process:
@@ -51,12 +53,15 @@ Copy `.env.example` to `.env` at the repository root before `pnpm dev`. Each pro
 
 The passwords in `.env.example` and the compose file are for this local Docker setup.
 
-Copy `.env.example` to `.env` before migrating. Prisma reads `PORTAL_DATABASE_URL` from the environment or that file.
+Copy `.env.example` to `.env` before migrating. Portal Prisma reads `PORTAL_DATABASE_URL`. Fake Salesforce Prisma reads `SALESFORCE_DATABASE_URL`.
 
 ```text
 pnpm --filter portal-api db:generate
 pnpm --filter portal-api db:migrate
 pnpm --filter portal-api db:seed
+pnpm --filter fake-salesforce db:generate
+pnpm --filter fake-salesforce db:migrate
+pnpm --filter fake-salesforce db:seed
 ```
 
-`db:migrate` applies `apps/portal-api/prisma/migrations` to `portal-db`. `apps/fake-salesforce/prisma/migrations` is still empty. The worker uses `portal-db` and does not own a migration directory. Fake Salesforce does not import portal packages.
+Each `db:migrate` applies only that app's `prisma/migrations` directory. The worker uses `portal-db` and does not own a migration directory. Fake Salesforce does not import portal packages or open the portal database.

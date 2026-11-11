@@ -295,6 +295,12 @@ importers:
       '@nestjs/platform-express':
         specifier: 'catalog:'
         version: 12.4.2(@nestjs/common@12.4.2(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/core@12.4.2)(rxjs@7.8.2)(supports-color@8.1.1)
+      '@prisma/adapter-pg':
+        specifier: 'catalog:'
+        version: 7.10.1
+      '@prisma/client':
+        specifier: 'catalog:'
+        version: 7.10.1(prisma@7.10.1(@types/node@26.6.6)(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@5.9.3))(typescript@5.9.3)
       '@sync/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -350,6 +356,9 @@ importers:
       jest:
         specifier: 'catalog:'
         version: 30.5.2(@types/node@26.6.6)(supports-color@8.1.1)
+      prisma:
+        specifier: 'catalog:'
+        version: 7.10.1(@types/node@26.6.6)(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@5.9.3)
       supertest:
         specifier: 'catalog:'
         version: 7.3.2(supports-color@8.1.1)

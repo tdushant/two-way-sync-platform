@@ -7,7 +7,10 @@
     "dev": "nest start --watch",
     "start": "node dist/main.js",
     "lint": "eslint src --config ../../eslint.config.mjs",
-    "test": "node --experimental-vm-modules --disable-warning=ExperimentalWarning ./node_modules/jest/bin/jest.js --config jest.config.cjs"
+    "test": "node --experimental-vm-modules --disable-warning=ExperimentalWarning ./node_modules/jest/bin/jest.js --config jest.config.cjs",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:seed": "prisma db seed"
   },
   "dependencies": {
     "@nestjs/common": "catalog:",
@@ -18,6 +21,8 @@
     "class-transformer": "catalog:",
     "class-validator": "catalog:",
     "nestjs-pino": "catalog:",
+    "@prisma/adapter-pg": "catalog:",
+    "@prisma/client": "catalog:",
     "pg": "catalog:",
     "pino": "catalog:",
     "pino-http": "catalog:",
@@ -33,6 +38,7 @@
     "@types/pg": "catalog:",
     "@types/supertest": "catalog:",
     "eslint": "catalog:",
+    "prisma": "catalog:",
     "jest": "catalog:",
     "supertest": "catalog:",
     "ts-jest": "catalog:",

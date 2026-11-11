@@ -1,0 +1,100 @@
+// Fake Salesforce database. It does not reference the portal database.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model SfAccount {
+  id             String   @id
+  name           String?
+  status         String?
+  ownerId        String?  @map("owner_id")
+  version        BigInt
+  systemModstamp DateTime @map("system_modstamp") @db.Timestamptz(6)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  contacts SfContact[]
+
+  @@map("sf_accounts")
+}
+
+model SfContact {
+  id             String   @id
+  accountId      String   @map("account_id")
+  fullName       String?  @map("full_name")
+  email          String?
+  phone          String?
+  city           String?
+  ownerId        String?  @map("owner_id")
+  version        BigInt
+  systemModstamp DateTime @map("system_modstamp") @db.Timestamptz(6)
+
+  account SfAccount @relation(fields: [accountId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "sf_contacts_account_id_fkey")
+
+  @@index([accountId], map: "sf_contacts_account_id_idx")
+  @@map("sf_contacts")
+}
+
+model SfChangeLog {
+  sequence          BigInt   @id @default(autoincrement())
+  eventId           String   @unique(map: "sf_change_log_event_id_key") @map("event_id") @db.Uuid
+  objectType        String   @map("object_type")
+  recordId          String   @map("record_id")
+  changedFields     Json     @map("changed_fields") @db.JsonB
+  changedBy         String?  @map("changed_by")
+  values            Json?    @db.JsonB
+  version           BigInt
+  occurredAt        DateTime @map("occurred_at") @db.Timestamptz(6)
+  originOperationId String?  @map("origin_operation_id") @db.Uuid
+
+  @@map("sf_change_log")
+}
+
+model SfWebhookDelivery {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  changeSequence BigInt    @map("change_sequence")
+  eventId        String    @map("event_id") @db.Uuid
+  payload        Json      @db.JsonB
+  attempts       Int
+  scheduledAt    DateTime  @map("scheduled_at") @db.Timestamptz(6)
+  status         String
+  lastHttpStatus Int?      @map("last_http_status")
+  deliveredAt    DateTime? @map("delivered_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([status, scheduledAt], map: "sf_webhook_deliveries_status_scheduled_idx")
+  @@index([eventId], map: "sf_webhook_deliveries_event_id_idx")
+  @@map("sf_webhook_deliveries")
+}
+
+model SfSimulatorConfig {
+  id              Int     @id
+  outageEnabled   Boolean @map("outage_enabled")
+  webhookEnabled  Boolean @map("webhook_enabled")
+  duplicateCount  Int     @map("duplicate_count")
+  delayMs         Int     @map("delay_ms")
+  disorderMode    String  @map("disorder_mode")
+  failureRate     Decimal @map("failure_rate") @db.Decimal(65, 30)
+  rateLimitPerSec Decimal @map("rate_limit_per_sec") @db.Decimal(65, 30)
+  dropWebhookRate Decimal @map("drop_webhook_rate") @db.Decimal(65, 30)
+  responseDelayMs Int     @map("response_delay_ms")
+
+  @@map("sf_simulator_config")
+}
+
+model SfApiRequestLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  method      String
+  path        String
+  operationId String?  @map("operation_id") @db.Uuid
+  statusCode  Int      @map("status_code")
+  requestAt   DateTime @map("request_at") @db.Timestamptz(6)
+  latencyMs   Int      @map("latency_ms")
+
+  @@map("sf_api_request_log")
+}

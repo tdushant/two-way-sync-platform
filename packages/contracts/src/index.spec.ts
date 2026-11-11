@@ -13,6 +13,9 @@ describe('process health contract', () => {
       dependencies?: Record<string, string>;
     };
     const names = Object.keys(manifest.dependencies ?? {});
-    expect(names).toEqual([]);
+    expect(names.sort()).toEqual(['class-validator', 'reflect-metadata']);
+    expect(
+      names.some((name) => name.includes('prisma') || name === 'pg' || name.startsWith('@nestjs')),
+    ).toBe(false);
   });
 });

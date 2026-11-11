@@ -519,6 +519,13 @@ importers:
         version: 5.9.3
 
   packages/contracts:
+    dependencies:
+      class-validator:
+        specifier: 'catalog:'
+        version: 0.15.1
+      reflect-metadata:
+        specifier: 'catalog:'
+        version: 0.2.2
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'

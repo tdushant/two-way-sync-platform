@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "webhook.envelope",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eventId",
+        "objectType",
+        "recordId",
+        "eventType",
+        "changedFields",
+        "changedBy",
+        "occurredAt"
+      ],
+      "properties": {
+        "eventId": { "type": "string", "minLength": 1 },
+        "objectType": { "enum": ["Account", "Contact"] },
+        "recordId": { "type": "string", "minLength": 1 },
+        "eventType": { "enum": ["created", "updated"] },
+        "changedFields": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "null"], "minLength": 1 }
+        },
+        "changedBy": { "type": "string", "minLength": 1 },
+        "values": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "null"], "minLength": 1 }
+        },
+        "occurredAt": { "type": "string", "minLength": 1 },
+        "recordVersion": { "type": "integer", "minimum": 0 },
+        "originOperationId": { "type": ["string", "null"], "minLength": 1 },
+        "changeSequence": { "type": "integer", "minimum": 0 }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eventId",
+        "objectType",
+        "recordId",
+        "eventType",
+        "changedFields",
+        "values",
+        "occurredAt"
+      ],
+      "properties": {
+        "eventId": { "type": "string", "minLength": 1 },
+        "objectType": { "enum": ["Account", "Contact"] },
+        "recordId": { "type": "string", "minLength": 1 },
+        "eventType": { "enum": ["created", "updated"] },
+        "changedFields": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "changedBy": { "type": "string", "minLength": 1 },
+        "values": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "null"], "minLength": 1 }
+        },
+        "occurredAt": { "type": "string", "minLength": 1 },
+        "recordVersion": { "type": "integer", "minimum": 0 },
+        "originOperationId": { "type": ["string", "null"], "minLength": 1 },
+        "changeSequence": { "type": "integer", "minimum": 0 }
+      }
+    }
+  ]
+}

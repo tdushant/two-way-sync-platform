@@ -9,6 +9,10 @@
     "lint": "eslint src --config ../../eslint.config.mjs",
     "test": "node --experimental-vm-modules --disable-warning=ExperimentalWarning ./node_modules/jest/bin/jest.js --config jest.config.cjs"
   },
+  "dependencies": {
+    "class-validator": "catalog:",
+    "reflect-metadata": "catalog:"
+  },
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@types/jest": "catalog:",

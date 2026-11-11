@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "api.error",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["correlationId", "statusCode", "code", "message"],
+  "properties": {
+    "correlationId": { "type": "string", "minLength": 1 },
+    "statusCode": { "type": "integer", "minimum": 400 },
+    "code": {
+      "enum": ["validation_failed", "unknown_field", "invalid_signature", "integrity_error"]
+    },
+    "message": { "type": "string", "minLength": 1 }
+  }
+}

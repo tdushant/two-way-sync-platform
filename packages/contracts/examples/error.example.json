@@ -1,0 +1,6 @@
+{
+  "correlationId": "3c0a9b44-1111-4222-8333-444444444444",
+  "statusCode": 400,
+  "code": "unknown_field",
+  "message": "Unknown field extra"
+}

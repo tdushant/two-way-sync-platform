@@ -1,0 +1,12 @@
+{
+  "eventId": "6b1f0a2e-7c10-4d0a-9a1e-222222222222",
+  "objectType": "Account",
+  "recordId": "SF-ACC-001",
+  "eventType": "updated",
+  "changedFields": ["name"],
+  "values": { "name": "New Name" },
+  "recordVersion": 8,
+  "occurredAt": "2026-11-11T10:00:00.000Z",
+  "originOperationId": null,
+  "changeSequence": 101
+}

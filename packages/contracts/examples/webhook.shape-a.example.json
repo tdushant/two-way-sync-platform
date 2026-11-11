@@ -1,0 +1,9 @@
+{
+  "eventId": "6b1f0a2e-7c10-4d0a-9a1e-222222222222",
+  "objectType": "Contact",
+  "recordId": "SF-CON-001",
+  "eventType": "updated",
+  "changedFields": { "city": "Paris" },
+  "changedBy": "sf-user-1",
+  "occurredAt": "2026-11-11T10:00:00.000Z"
+}

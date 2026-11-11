@@ -136,6 +136,19 @@ model SyncOperation {
   @@map("sync_operations")
 }
 
+// Accepts the documented client_idempotency_keys proposal so a client create
+// can be claimed in the same transaction as the entity and its outbox row.
+model ClientIdempotencyKey {
+  scope          String   @map("scope")
+  idempotencyKey String   @map("idempotency_key")
+  requestHash    String   @map("request_hash")
+  entityId       String   @map("entity_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([scope, idempotencyKey])
+  @@map("client_idempotency_keys")
+}
+
 model ReconciliationRun {
   id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   startedAt      DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)

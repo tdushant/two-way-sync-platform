@@ -1,0 +1,51 @@
+# Local PostgreSQL instances. Separate users, databases, host ports, volumes, and networks.
+# Passwords match .env.example and are not for a shared or production environment.
+name: sync-platform
+
+services:
+  portal-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: portal
+      POSTGRES_PASSWORD: portal
+      POSTGRES_DB: portal
+    # Host port 5434 avoids a machine-local Postgres already bound to 5432.
+    ports:
+      - '5434:5432'
+    volumes:
+      - portal-db-data:/var/lib/postgresql/data
+    networks:
+      - portal
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U portal -d portal']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  salesforce-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: salesforce
+      POSTGRES_PASSWORD: salesforce
+      POSTGRES_DB: salesforce
+    ports:
+      - '5433:5432'
+    volumes:
+      - salesforce-db-data:/var/lib/postgresql/data
+    networks:
+      - salesforce
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U salesforce -d salesforce']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+networks:
+  portal:
+  salesforce:
+
+volumes:
+  portal-db-data:
+  salesforce-db-data:

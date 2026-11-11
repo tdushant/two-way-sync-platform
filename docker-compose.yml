@@ -1,0 +1,4 @@
+name: sync-platform
+
+include:
+  - infra/docker-compose.yml

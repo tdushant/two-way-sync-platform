@@ -1,0 +1,150 @@
+// Portal database. Fake Salesforce has its own schema and database.
+// CHECK constraints that Prisma cannot model live in the SQL migration.
+
+generator client {
+  provider        = "prisma-client"
+  output          = "../generated/prisma"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Customer {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  salesforceId String?  @unique(map: "customers_salesforce_id_key") @map("salesforce_id")
+  name         String
+  status       String?
+  ownerId      String?  @map("owner_id")
+  rowVersion   BigInt   @default(0) @map("row_version")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  contacts Contact[]
+
+  @@map("customers")
+}
+
+model Contact {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  salesforceId String?  @unique(map: "contacts_salesforce_id_key") @map("salesforce_id")
+  customerId   String   @map("customer_id") @db.Uuid
+  fullName     String?  @map("full_name")
+  email        String?
+  phone        String?
+  city         String?
+  ownerId      String?  @map("owner_id")
+  rowVersion   BigInt   @default(0) @map("row_version")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "contacts_customer_id_fkey")
+
+  @@index([customerId], map: "contacts_customer_id_idx")
+  @@map("contacts")
+}
+
+model FieldHistory {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entityType      String    @map("entity_type")
+  entityId        String    @map("entity_id") @db.Uuid
+  fieldName       String    @map("field_name")
+  oldValue        Json?     @map("old_value") @db.JsonB
+  newValue        Json?     @map("new_value") @db.JsonB
+  source          String
+  actorId         String?   @map("actor_id")
+  eventId         String?   @map("event_id")
+  operationId     String?   @map("operation_id") @db.Uuid
+  sourceChangedAt DateTime? @map("source_changed_at") @db.Timestamptz(6)
+  appliedAt       DateTime  @default(now()) @map("applied_at") @db.Timestamptz(6)
+  decision        String
+
+  @@index([entityType, entityId, appliedAt], map: "field_history_entity_applied_idx")
+  @@map("field_history")
+}
+
+model ProcessedEvent {
+  eventId     String    @id @map("event_id")
+  payloadHash String    @map("payload_hash")
+  entityType  String?   @map("entity_type")
+  externalId  String?   @map("external_id")
+  status      String
+  receivedAt  DateTime  @default(now()) @map("received_at") @db.Timestamptz(6)
+  processedAt DateTime? @map("processed_at") @db.Timestamptz(6)
+
+  @@map("processed_events")
+}
+
+model OutboxEvent {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  operationId   String    @unique(map: "outbox_events_operation_id_key") @map("operation_id") @db.Uuid
+  entityType    String    @map("entity_type")
+  entityId      String    @map("entity_id") @db.Uuid
+  eventType     String    @map("event_type")
+  changedFields Json      @map("changed_fields") @db.JsonB
+  baseVersions  Json      @map("base_versions") @db.JsonB
+  status        String
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now()) @map("next_attempt_at") @db.Timestamptz(6)
+  leaseUntil    DateTime? @map("lease_until") @db.Timestamptz(6)
+  lastError     String?   @map("last_error")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([status, nextAttemptAt], map: "outbox_events_status_next_attempt_idx")
+  @@index([nextAttemptAt, id], map: "outbox_events_due_idx", where: raw("status = ANY (ARRAY['PENDING'::text, 'RETRY'::text])"))
+  @@index([leaseUntil], map: "outbox_events_lease_idx", where: raw("status = 'IN_FLIGHT'"))
+  @@map("outbox_events")
+}
+
+model FieldSyncState {
+  entityType      String   @map("entity_type")
+  entityId        String   @map("entity_id") @db.Uuid
+  fieldName       String   @map("field_name")
+  source          String
+  sourceVersion   String   @map("source_version")
+  sourceChangedAt DateTime @map("source_changed_at") @db.Timestamptz(6)
+  lastAppliedAt   DateTime @map("last_applied_at") @db.Timestamptz(6)
+  lastOperationId String?  @map("last_operation_id") @db.Uuid
+
+  @@id([entityType, entityId, fieldName])
+  @@map("field_sync_state")
+}
+
+model SyncCheckpoint {
+  streamName    String    @id @map("stream_name")
+  cursor        String?
+  lastSuccessAt DateTime? @map("last_success_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("sync_checkpoints")
+}
+
+model SyncOperation {
+  operationId    String    @id @map("operation_id") @db.Uuid
+  entityType     String    @map("entity_type")
+  entityId       String    @map("entity_id") @db.Uuid
+  fields         Json      @db.JsonB
+  expectedValues Json      @map("expected_values") @db.JsonB
+  externalId     String?   @map("external_id")
+  status         String
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt      DateTime? @map("expires_at") @db.Timestamptz(6)
+
+  @@index([externalId, status], map: "sync_operations_external_status_idx")
+  @@map("sync_operations")
+}
+
+model ReconciliationRun {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  startedAt      DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+  status         String
+  fromCursor     String?   @map("from_cursor")
+  toCursor       String?   @map("to_cursor")
+  processedCount Int       @default(0) @map("processed_count")
+  error          String?
+
+  @@map("reconciliation_runs")
+}

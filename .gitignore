@@ -1,0 +1,7 @@
+node_modules/
+dist/
+coverage/
+apps/portal-api/generated/
+.env
+*.tsbuildinfo
+*.log

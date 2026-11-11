@@ -1,0 +1,35 @@
+{
+  "name": "portal-worker",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "nest build && tsc -p tsconfig.json --noEmit",
+    "dev": "nest start --watch",
+    "start": "node dist/main.js",
+    "lint": "eslint src --config ../../eslint.config.mjs",
+    "test": "node --experimental-vm-modules --disable-warning=ExperimentalWarning ./node_modules/jest/bin/jest.js --config jest.config.cjs"
+  },
+  "dependencies": {
+    "@nestjs/common": "catalog:",
+    "@nestjs/config": "catalog:",
+    "@nestjs/core": "catalog:",
+    "class-transformer": "catalog:",
+    "class-validator": "catalog:",
+    "nestjs-pino": "catalog:",
+    "pino": "catalog:",
+    "pino-http": "catalog:",
+    "reflect-metadata": "catalog:",
+    "rxjs": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@nestjs/cli": "catalog:",
+    "@nestjs/testing": "catalog:",
+    "@types/jest": "catalog:",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "jest": "catalog:",
+    "ts-jest": "catalog:",
+    "typescript": "catalog:"
+  }
+}

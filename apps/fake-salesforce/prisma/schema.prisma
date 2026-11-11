@@ -87,6 +87,19 @@ model SfSimulatorConfig {
   @@map("sf_simulator_config")
 }
 
+// Accepts the documented sf_idempotency_keys proposal so a worker retry
+// returns the original response and does not append a second change-log row.
+model SfIdempotencyKey {
+  operationId  String   @id @map("operation_id") @db.Uuid
+  requestHash  String   @map("request_hash")
+  statusCode   Int      @map("status_code")
+  responseBody Json     @map("response_body") @db.JsonB
+  recordId     String?  @map("record_id")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("sf_idempotency_keys")
+}
+
 model SfApiRequestLog {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   method      String

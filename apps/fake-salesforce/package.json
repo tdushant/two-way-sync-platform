@@ -5,7 +5,7 @@
   "scripts": {
     "build": "nest build && tsc -p tsconfig.json --noEmit",
     "dev": "nest start --watch",
-    "start": "node dist/main.js",
+    "start": "node dist/src/main.js",
     "lint": "eslint src --config ../../eslint.config.mjs",
     "test": "node --experimental-vm-modules --disable-warning=ExperimentalWarning ./node_modules/jest/bin/jest.js --config jest.config.cjs",
     "db:generate": "prisma generate",

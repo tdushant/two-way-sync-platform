@@ -12,6 +12,7 @@ const TIMESTAMP_COLUMNS = [
   ['sf_webhook_deliveries', 'delivered_at'],
   ['sf_webhook_deliveries', 'created_at'],
   ['sf_api_request_log', 'request_at'],
+  ['sf_idempotency_keys', 'created_at'],
 ] as const;
 
 function salesforceDatabaseUrl(): string {
@@ -92,6 +93,7 @@ describe('fake salesforce database schema', () => {
       'sf_api_request_log',
       'sf_change_log',
       'sf_contacts',
+      'sf_idempotency_keys',
       'sf_simulator_config',
       'sf_webhook_deliveries',
     ]);

@@ -2,6 +2,7 @@ node_modules/
 dist/
 coverage/
 apps/portal-api/generated/
+apps/portal-worker/generated/
 apps/fake-salesforce/generated/
 .env
 *.tsbuildinfo

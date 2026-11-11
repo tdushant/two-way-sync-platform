@@ -13,6 +13,8 @@ describe('portal-worker package boundary', () => {
       ...Object.keys(manifest.devDependencies ?? {}),
     ];
     expect(names.some((name) => name.includes('fake-salesforce'))).toBe(false);
-    expect(names).not.toContain('pg');
+    expect(names).toContain('pg');
+    expect(names).toContain('@prisma/client');
+    expect(JSON.stringify(manifest)).not.toContain('SALESFORCE_DATABASE_URL');
   });
 });

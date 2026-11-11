@@ -468,6 +468,15 @@ importers:
       '@nestjs/core':
         specifier: 'catalog:'
         version: 12.4.2(@nestjs/common@12.4.2(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/platform-express@12.4.2)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@prisma/adapter-pg':
+        specifier: 'catalog:'
+        version: 7.10.1
+      '@prisma/client':
+        specifier: 'catalog:'
+        version: 7.10.1(prisma@7.10.1(@types/node@26.6.6)(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@5.9.3))(typescript@5.9.3)
+      '@sync/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       class-transformer:
         specifier: 'catalog:'
         version: 0.5.1
@@ -477,6 +486,9 @@ importers:
       nestjs-pino:
         specifier: 'catalog:'
         version: 5.3.1(@nestjs/common@12.4.2(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/core@12.4.2)(pino-http@11.0.0)(pino@10.4.0)(rxjs@7.8.2)
+      pg:
+        specifier: 'catalog:'
+        version: 8.23.1
       pino:
         specifier: 'catalog:'
         version: 10.4.0
@@ -505,12 +517,18 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
+      '@types/pg':
+        specifier: 'catalog:'
+        version: 8.23.1
       eslint:
         specifier: 'catalog:'
         version: 10.14.0(jiti@2.7.0)(supports-color@8.1.1)
       jest:
         specifier: 'catalog:'
         version: 30.5.2(@types/node@26.6.6)(supports-color@8.1.1)
+      prisma:
+        specifier: 'catalog:'
+        version: 7.10.1(@types/node@26.6.6)(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@5.9.3)
       ts-jest:
         specifier: 'catalog:'
         version: 29.4.15(@babel/core@7.29.13(supports-color@8.1.1))(@jest/transform@30.5.2(supports-color@8.1.1))(@jest/types@30.5.1)(babel-jest@30.5.2(@babel/core@7.29.13(supports-color@8.1.1))(supports-color@8.1.1))(jest-util@30.5.1)(jest@30.5.2(@types/node@26.6.6)(supports-color@8.1.1))(typescript@5.9.3)

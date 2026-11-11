@@ -161,3 +161,14 @@ model ReconciliationRun {
 
   @@map("reconciliation_runs")
 }
+
+// Shared integer-token bucket for every portal-worker replica. OD-QUOTA.
+model ApiQuotaBucket {
+  bucket               String   @id
+  tokens               BigInt
+  maxTokens            BigInt   @map("max_tokens")
+  refillPerSecondMilli BigInt   @map("refill_per_second_milli")
+  updatedAt            DateTime @map("updated_at") @db.Timestamptz(6)
+
+  @@map("api_quota_buckets")
+}

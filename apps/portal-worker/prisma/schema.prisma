@@ -1,0 +1,115 @@
+// Portal database client for the worker. The migration history lives in portal-api.
+// This schema must stay aligned with the portal tables the worker reads and writes.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Customer {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  salesforceId String?  @unique(map: "customers_salesforce_id_key") @map("salesforce_id")
+  name         String
+  status       String?
+  ownerId      String?  @map("owner_id")
+  rowVersion   BigInt   @default(0) @map("row_version")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("customers")
+}
+
+model Contact {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  salesforceId String?  @unique(map: "contacts_salesforce_id_key") @map("salesforce_id")
+  customerId   String   @map("customer_id") @db.Uuid
+  fullName     String?  @map("full_name")
+  email        String?
+  phone        String?
+  city         String?
+  ownerId      String?  @map("owner_id")
+  rowVersion   BigInt   @default(0) @map("row_version")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("contacts")
+}
+
+model FieldHistory {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entityType      String    @map("entity_type")
+  entityId        String    @map("entity_id") @db.Uuid
+  fieldName       String    @map("field_name")
+  oldValue        Json?     @map("old_value") @db.JsonB
+  newValue        Json?     @map("new_value") @db.JsonB
+  source          String
+  actorId         String?   @map("actor_id")
+  eventId         String?   @map("event_id")
+  operationId     String?   @map("operation_id") @db.Uuid
+  sourceChangedAt DateTime? @map("source_changed_at") @db.Timestamptz(6)
+  appliedAt       DateTime  @default(now()) @map("applied_at") @db.Timestamptz(6)
+  decision        String
+
+  @@map("field_history")
+}
+
+model OutboxEvent {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  operationId   String    @unique(map: "outbox_events_operation_id_key") @map("operation_id") @db.Uuid
+  entityType    String    @map("entity_type")
+  entityId      String    @map("entity_id") @db.Uuid
+  eventType     String    @map("event_type")
+  changedFields Json      @map("changed_fields") @db.JsonB
+  baseVersions  Json      @map("base_versions") @db.JsonB
+  status        String
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now()) @map("next_attempt_at") @db.Timestamptz(6)
+  leaseUntil    DateTime? @map("lease_until") @db.Timestamptz(6)
+  lastError     String?   @map("last_error")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("outbox_events")
+}
+
+model FieldSyncState {
+  entityType      String   @map("entity_type")
+  entityId        String   @map("entity_id") @db.Uuid
+  fieldName       String   @map("field_name")
+  source          String
+  sourceVersion   String   @map("source_version")
+  sourceChangedAt DateTime @map("source_changed_at") @db.Timestamptz(6)
+  lastAppliedAt   DateTime @map("last_applied_at") @db.Timestamptz(6)
+  lastOperationId String?  @map("last_operation_id") @db.Uuid
+
+  @@id([entityType, entityId, fieldName])
+  @@map("field_sync_state")
+}
+
+model SyncOperation {
+  operationId    String    @id @map("operation_id") @db.Uuid
+  entityType     String    @map("entity_type")
+  entityId       String    @map("entity_id") @db.Uuid
+  fields         Json      @db.JsonB
+  expectedValues Json      @map("expected_values") @db.JsonB
+  externalId     String?   @map("external_id")
+  status         String
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt      DateTime? @map("expires_at") @db.Timestamptz(6)
+
+  @@map("sync_operations")
+}
+
+model ApiQuotaBucket {
+  bucket               String   @id
+  tokens               BigInt
+  maxTokens            BigInt   @map("max_tokens")
+  refillPerSecondMilli BigInt   @map("refill_per_second_milli")
+  updatedAt            DateTime @map("updated_at") @db.Timestamptz(6)
+
+  @@map("api_quota_buckets")
+}

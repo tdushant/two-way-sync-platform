@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
 import { validatePortalWorkerEnv } from './env';
+import { OutboundModule } from './outbox/outbound.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { validatePortalWorkerEnv } from './env';
         level: process.env.NODE_ENV === 'test' ? 'silent' : 'info',
       },
     }),
+    OutboundModule,
   ],
 })
 export class AppModule {}

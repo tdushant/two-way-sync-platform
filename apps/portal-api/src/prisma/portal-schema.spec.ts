@@ -25,6 +25,7 @@ const TIMESTAMP_COLUMNS = [
   ['reconciliation_runs', 'started_at'],
   ['reconciliation_runs', 'completed_at'],
   ['client_idempotency_keys', 'created_at'],
+  ['api_quota_buckets', 'updated_at'],
 ] as const;
 
 function portalDatabaseUrl(): string {
@@ -73,6 +74,7 @@ describe('portal database schema', () => {
     );
     expect(result.rows.map((row) => row.table_name)).toEqual([
       '_prisma_migrations',
+      'api_quota_buckets',
       'client_idempotency_keys',
       'contacts',
       'customers',

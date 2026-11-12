@@ -71,7 +71,9 @@ Portal writes commit the record, field history, and an outbox row in one transac
 
 With `pnpm dev` running, open [http://localhost:3000/dashboard](http://localhost:3000/dashboard).
 
-The page is static HTML served by `portal-api`. It creates and edits portal contacts through `/api/v1`, creates and edits Fake Salesforce contacts through `/sf/v1`, and replaces the simulator config with `PUT /simulator/config`. Outage is the `outageEnabled` checkbox. Duplicate count is the extra copies field. Reorder posts event ids to `/simulator/reorder-deliveries`. Refresh reads sync health (including `checkpointCursor`), the outbox, portal contact history, and webhook deliveries. The page does not apply conflict rules, sign webhooks, or move the reconciliation cursor.
+The page is static HTML served by `portal-api`. Tabs separate contacts, the simulator, sync inspection, and webhooks. It creates and edits portal contacts through `/api/v1`, creates and edits Fake Salesforce contacts through `/sf/v1`, and replaces the simulator config with `PUT /simulator/config`. Outage is the `outageEnabled` checkbox. Duplicate count is the extra copies field. Reorder posts event ids to `/simulator/reorder-deliveries`. Refresh reads sync health (including `checkpointCursor`), the outbox, portal contact history, and webhook deliveries.
+
+Webhook deliveries have two views. Recent events filters the loaded list by `createdAt` window, status, object type, event type, and event id. All events shows the full `GET /simulator/deliveries` response in server order. Those filters run in the browser. The page does not apply conflict rules, sign webhooks, or move the reconciliation cursor.
 
 Fake Salesforce allows browser calls from `localhost` and `127.0.0.1` only when `NODE_ENV` is not `production`. Set the actor, simulator token, and Fake Salesforce base URL at the top of the page. The default token is `local-simulator-token`.
 

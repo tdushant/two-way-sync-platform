@@ -251,21 +251,47 @@ describe('portal inbound salesforce webhook', () => {
     expect(row.rowVersion).toBe(1n);
   });
 
-  it('defers an unknown external id and a contact whose parent is unmapped', async () => {
+  it('creates an unknown Account and defers a contact whose parent is unmapped', async () => {
+    const recordId = `SF-WH-${randomUUID()}`;
     const raw = envelope({
-      recordId: `SF-WH-${randomUUID()}`,
+      recordId,
       changedFields: { name: 'Ghost' },
       recordVersion: 1,
       occurredAt: '2026-11-12T00:00:00.000Z',
     });
     const missing = await post(app, raw);
-    expect(missing.status).toBe(409);
-    expect(missing.body.message).toBe('External mapping is not available');
+    expect(missing.status).toBe(200);
+    expect(missing.body.outcome).toBe('applied');
+    const ghost = await prisma.client.customer.findUniqueOrThrow({
+      where: { salesforceId: recordId },
+    });
+    created.push(ghost.id);
+    expect(ghost).toMatchObject({ name: 'Ghost', rowVersion: 1n });
+    expect(await prisma.client.outboxEvent.count({ where: { entityId: ghost.id } })).toBe(0);
     expect(
       await prisma.client.processedEvent.count({
         where: { eventId: (JSON.parse(raw) as { eventId: string }).eventId },
       }),
-    ).toBe(0);
+    ).toBe(1);
+    const remoteContactId = `SF-WH-${randomUUID()}`;
+    const contactEvent = await post(
+      app,
+      envelope({
+        objectType: 'Contact',
+        recordId: remoteContactId,
+        changedFields: { accountId: recordId, fullName: 'Ada' },
+        recordVersion: 1,
+        occurredAt: '2026-11-12T00:00:01.000Z',
+      }),
+    );
+    expect(contactEvent.status).toBe(200);
+    const createdContact = await prisma.client.contact.findUniqueOrThrow({
+      where: { salesforceId: remoteContactId },
+    });
+    expect(createdContact).toMatchObject({ customerId: ghost.id, fullName: 'Ada' });
+    expect(await prisma.client.outboxEvent.count({ where: { entityId: createdContact.id } })).toBe(
+      0,
+    );
 
     const customer = await seedCustomer(prisma, created, 'Parent');
     const contactId = randomUUID();

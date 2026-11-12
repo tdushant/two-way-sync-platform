@@ -50,7 +50,7 @@ import {
 /**
  * Partial product gaps, asserted only for the behavior that exists:
  * - T03 and T15 have no webhook_duplicates_total or webhook_invalid_signature_total.
- * - T14 defers an unknown Account. It does not create the portal customer.
+ * - T14 creates a portal customer for an unknown Account and does not enqueue an outbox row.
  * - T18 records the dead letter. No replay route is bound.
  * - T11's timeout case uses the simulator's immediate 408, not a held socket.
  */
@@ -534,20 +534,28 @@ describe('sync matrix', () => {
     expect(await world.fake.client.sfContact.count()).toBe(1);
   });
 
-  it('T14 defers an unknown Account and leaves the change log in place', async () => {
+  it('T14 creates an unknown Account and leaves the change log in place', async () => {
     const account = await fakeCreateAccount(world, 'wkx e2e unknown account');
     await flushWebhooks(world);
     const delivery = only(await deliveries(world), 'account delivery');
-    expect(delivery.lastHttpStatus).toBe(409);
-    expect(await world.portal.client.customer.count()).toBe(0);
-    expect(await world.portal.client.processedEvent.count()).toBe(0);
+    expect(delivery.lastHttpStatus).toBe(200);
+    const customers = await world.portal.client.customer.findMany();
+    expect(customers).toHaveLength(1);
+    expect(customers[0]).toMatchObject({
+      salesforceId: account.id,
+      name: 'wkx e2e unknown account',
+    });
+    expect(await world.portal.client.outboxEvent.count()).toBe(0);
+    expect(await world.portal.client.processedEvent.count()).toBe(1);
     const page = await changes(world, null);
     expect(page.some((row) => row.recordId === account.id)).toBe(true);
   });
 
   it('T14 leaves an unmapped parent uncommitted until that parent exists', async () => {
     const synced = await syncContact(world, { label: 't14', phone: '555-0100', city: 'Paris' });
+    await putConfig(world, { delayMs: 86_400_000 });
     const account = await fakeCreateAccount(world, 'wkx e2e other account');
+    await putConfig(world, { delayMs: 0 });
     const event = await emitContact(world, {
       recordId: required(synced.contact.salesforceId),
       occurredAt: world.clock.now().toISOString(),

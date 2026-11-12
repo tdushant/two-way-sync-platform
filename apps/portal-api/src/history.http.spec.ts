@@ -134,6 +134,9 @@ describe('field history and local dashboard', () => {
     expect(response.text).toContain('/api/v1/sync/health');
     expect(response.text).toContain('/simulator/reorder-deliveries');
     expect(response.text).toContain('/simulator/config');
+    expect(response.text).toContain('Recent events');
+    expect(response.text).toContain('All events');
+    expect(response.text).toContain('id="recentWindow"');
     expect(response.text).not.toContain('CONFLICT_LOST');
   });
 });

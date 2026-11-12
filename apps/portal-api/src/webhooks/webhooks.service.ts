@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { apiError, type CanonicalWebhook } from '@sync/contracts';
 import { Prisma } from '../../generated/prisma/client';
@@ -58,9 +58,10 @@ export class WebhooksService {
     }
     const payloadHash = createHash('sha256').update(rawBody).digest('hex');
     const now = new Date();
+    const inbound = await this.withSourceSnapshot(event);
     try {
       const result = await this.prisma.client.$transaction((tx) =>
-        this.apply(tx, event, recordVersion, payloadHash, now, correlationId),
+        this.apply(tx, inbound, recordVersion, payloadHash, now, correlationId),
       );
       this.logger.log({
         correlationId,
@@ -118,7 +119,14 @@ export class WebhooksService {
       }
     }
     if (!locked) {
-      locked = await this.lockExternal(tx, entityType, event.recordId, correlationId);
+      locked = await this.lockExternal(
+        tx,
+        entityType,
+        event.recordId,
+        portalFields,
+        now,
+        correlationId,
+      );
     }
     const verdicts = new Map<string, FieldVerdict>();
     for (const field of portalFields) {
@@ -308,10 +316,41 @@ export class WebhooksService {
     return actualKeys.every((key) => Object.hasOwn(expected, key) && expected[key] === actual[key]);
   }
 
+  private async withSourceSnapshot(event: CanonicalWebhook): Promise<CanonicalWebhook> {
+    if (await this.findMapped(event)) {
+      return event;
+    }
+    if (canInsert(event)) {
+      return event;
+    }
+    const fetched = await fetchSourceFields(event);
+    if (fetched === undefined) {
+      return event;
+    }
+    return { ...event, changedFields: { ...fetched, ...event.changedFields } };
+  }
+
+  private async findMapped(event: CanonicalWebhook): Promise<boolean> {
+    if (event.objectType === 'Account') {
+      const row = await this.prisma.client.customer.findUnique({
+        where: { salesforceId: event.recordId },
+        select: { id: true },
+      });
+      return row !== null;
+    }
+    const row = await this.prisma.client.contact.findUnique({
+      where: { salesforceId: event.recordId },
+      select: { id: true },
+    });
+    return row !== null;
+  }
+
   private async lockExternal(
     tx: Prisma.TransactionClient,
     entityType: 'customer' | 'contact',
     recordId: string,
+    fields: PortalField[],
+    now: Date,
     correlationId: string,
   ): Promise<LockedEntity> {
     const found =
@@ -319,13 +358,79 @@ export class WebhooksService {
         ? await tx.customer.findUnique({ where: { salesforceId: recordId }, select: { id: true } })
         : await tx.contact.findUnique({ where: { salesforceId: recordId }, select: { id: true } });
     if (!found) {
-      throw requestError(correlationId, 409, DEFERRABLE);
+      return this.createMapped(tx, entityType, recordId, fields, now, correlationId);
     }
     const locked = await this.lockEntity(tx, entityType, found.id);
     if (!locked || locked.salesforceId !== recordId) {
       throw requestError(correlationId, 409, DEFERRABLE);
     }
     return locked;
+  }
+
+  private async createMapped(
+    tx: Prisma.TransactionClient,
+    entityType: 'customer' | 'contact',
+    recordId: string,
+    fields: PortalField[],
+    now: Date,
+    correlationId: string,
+  ): Promise<LockedEntity> {
+    const id = randomUUID();
+    if (entityType === 'customer') {
+      const name = candidate(fields, 'name');
+      if (name === null || name.length === 0) {
+        throw requestError(correlationId, 409, DEFERRABLE);
+      }
+      await tx.customer.create({
+        data: {
+          id,
+          salesforceId: recordId,
+          name,
+          rowVersion: 0n,
+          createdAt: now,
+          updatedAt: now,
+        },
+      });
+      if (!(await lockCustomer(tx, id))) {
+        throw requestError(correlationId, 409, DEFERRABLE);
+      }
+      return {
+        id,
+        salesforceId: recordId,
+        rowVersion: 0n,
+        values: { name: null, status: null, ownerId: null },
+      };
+    }
+    const customerId = candidate(fields, 'customerId');
+    if (customerId === null) {
+      throw requestError(correlationId, 409, DEFERRABLE);
+    }
+    await tx.contact.create({
+      data: {
+        id,
+        salesforceId: recordId,
+        customerId,
+        rowVersion: 0n,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+    if (!(await lockContact(tx, id))) {
+      throw requestError(correlationId, 409, DEFERRABLE);
+    }
+    return {
+      id,
+      salesforceId: recordId,
+      rowVersion: 0n,
+      values: {
+        customerId: null,
+        fullName: null,
+        email: null,
+        phone: null,
+        city: null,
+        ownerId: null,
+      },
+    };
   }
 
   private async lockEntity(
@@ -436,6 +541,83 @@ export class WebhooksService {
 
 function jsonValue(value: string | null): Prisma.InputJsonValue | typeof Prisma.JsonNull {
   return value === null ? Prisma.JsonNull : value;
+}
+
+function candidate(fields: PortalField[], field: string): string | null {
+  const found = fields.find((item) => item.field === field);
+  return found === undefined ? null : found.candidate;
+}
+
+function canInsert(event: CanonicalWebhook): boolean {
+  if (event.objectType === 'Account') {
+    const name = event.changedFields.name;
+    return typeof name === 'string' && name.length > 0;
+  }
+  const accountId = event.changedFields.accountId;
+  return typeof accountId === 'string' && accountId.length > 0;
+}
+
+const ACCOUNT_SOURCE_FIELDS = ['name', 'status', 'ownerId'] as const;
+const CONTACT_SOURCE_FIELDS = [
+  'accountId',
+  'fullName',
+  'email',
+  'phone',
+  'city',
+  'ownerId',
+] as const;
+
+async function fetchSourceFields(
+  event: CanonicalWebhook,
+): Promise<Record<string, string | null> | undefined> {
+  const base = process.env.FAKE_SALESFORCE_BASE_URL;
+  if (typeof base !== 'string' || base.trim().length === 0) {
+    return undefined;
+  }
+  const path =
+    event.objectType === 'Account'
+      ? `/sf/v1/accounts/${encodeURIComponent(event.recordId)}`
+      : `/sf/v1/contacts/${encodeURIComponent(event.recordId)}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5_000);
+  try {
+    const response = await fetch(new URL(path, base), { signal: controller.signal });
+    if (!response.ok) {
+      return undefined;
+    }
+    return readSourceFields(event.objectType, await response.json());
+  } catch {
+    return undefined;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function readSourceFields(
+  objectType: CanonicalWebhook['objectType'],
+  body: unknown,
+): Record<string, string | null> | undefined {
+  if (!isRecord(body)) {
+    return undefined;
+  }
+  const keys = objectType === 'Account' ? ACCOUNT_SOURCE_FIELDS : CONTACT_SOURCE_FIELDS;
+  const fields: Record<string, string | null> = {};
+  for (const key of keys) {
+    if (!Object.hasOwn(body, key)) {
+      continue;
+    }
+    const value = Reflect.get(body, key);
+    if (key === 'name' || key === 'accountId') {
+      if (typeof value === 'string' && value.length > 0) {
+        fields[key] = value;
+      }
+      continue;
+    }
+    if (typeof value === 'string' || value === null) {
+      fields[key] = value;
+    }
+  }
+  return fields;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

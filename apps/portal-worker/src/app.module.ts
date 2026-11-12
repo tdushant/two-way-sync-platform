@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
 import { validatePortalWorkerEnv } from './env';
 import { OutboundModule } from './outbox/outbound.module';
+import { ReconciliationModule } from './reconcile/reconciliation.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { OutboundModule } from './outbox/outbound.module';
       },
     }),
     OutboundModule,
+    ReconciliationModule,
   ],
 })
 export class AppModule {}

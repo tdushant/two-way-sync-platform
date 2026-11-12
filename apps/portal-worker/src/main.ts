@@ -4,12 +4,14 @@ import { NestFactory } from '@nestjs/core';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { OutboundWorker } from './outbox/outbound-worker';
+import { ReconciliationWorker } from './reconcile/reconciliation-worker';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.createApplicationContext(AppModule, { bufferLogs: true });
   const logger = app.get(Logger);
   app.useLogger(logger);
   await app.get(OutboundWorker).start();
+  await app.get(ReconciliationWorker).start();
   const correlationId = randomUUID();
   logger.log({ correlationId, message: 'portal-worker started' });
 
@@ -19,6 +21,8 @@ async function bootstrap(): Promise<void> {
     process.once('SIGTERM', stop);
   });
 
+  app.get(ReconciliationWorker).stop();
+  await app.get(ReconciliationWorker).idle();
   await app
     .get(OutboundWorker)
     .flush()

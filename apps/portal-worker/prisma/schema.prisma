@@ -119,3 +119,37 @@ model ApiQuotaBucket {
 
   @@map("api_quota_buckets")
 }
+
+model ProcessedEvent {
+  eventId     String    @id @map("event_id")
+  payloadHash String    @map("payload_hash")
+  entityType  String?   @map("entity_type")
+  externalId  String?   @map("external_id")
+  status      String
+  receivedAt  DateTime  @default(now()) @map("received_at") @db.Timestamptz(6)
+  processedAt DateTime? @map("processed_at") @db.Timestamptz(6)
+
+  @@map("processed_events")
+}
+
+model SyncCheckpoint {
+  streamName    String    @id @map("stream_name")
+  cursor        String?
+  lastSuccessAt DateTime? @map("last_success_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("sync_checkpoints")
+}
+
+model ReconciliationRun {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  startedAt      DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+  status         String
+  fromCursor     String?   @map("from_cursor")
+  toCursor       String?   @map("to_cursor")
+  processedCount Int       @default(0) @map("processed_count")
+  error          String?
+
+  @@map("reconciliation_runs")
+}

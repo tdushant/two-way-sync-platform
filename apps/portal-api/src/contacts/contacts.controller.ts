@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Headers, Param, Patch, Post, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  Res,
+} from '@nestjs/common';
 import {
   IDEMPOTENCY_KEY_HEADER,
   parseContactPatch,
@@ -7,13 +18,17 @@ import {
   parseIfMatch,
 } from '@sync/contracts';
 import type { PortalRequest, PortalResponse } from '../http/portal-request';
+import { HistoryService } from '../history/history.service';
 import { requestError } from '../http/portal-request.error';
 import { unwrap } from '../http/unwrap';
 import { ContactsService } from './contacts.service';
 
 @Controller('api/v1/contacts')
 export class ContactsController {
-  constructor(private readonly contacts: ContactsService) {}
+  constructor(
+    private readonly contacts: ContactsService,
+    private readonly history: HistoryService,
+  ) {}
 
   @Post()
   async create(
@@ -29,6 +44,16 @@ export class ContactsController {
     const result = await this.contacts.create(parsed, actorId(request), key, request.correlationId);
     response.status(result.created ? 201 : 200);
     return result.contact;
+  }
+
+  @Get(':id/history')
+  historyPage(
+    @Req() request: PortalRequest,
+    @Param('id') id: string,
+    @Query('after') after?: string | string[],
+    @Query('limit') limit?: string | string[],
+  ): Promise<unknown> {
+    return this.history.page('contact', id, after, limit, request.correlationId);
   }
 
   @Get(':id')

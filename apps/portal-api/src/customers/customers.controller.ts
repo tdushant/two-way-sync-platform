@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Patch, Post, Res } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Patch, Post, Query, Res } from '@nestjs/common';
 import {
   IDEMPOTENCY_KEY_HEADER,
   parseCreateCustomer,
@@ -7,6 +7,7 @@ import {
   parseIfMatch,
 } from '@sync/contracts';
 import type { PortalRequest, PortalResponse } from '../http/portal-request';
+import { HistoryService } from '../history/history.service';
 import { requestError } from '../http/portal-request.error';
 import { unwrap } from '../http/unwrap';
 import { CustomersService } from './customers.service';
@@ -14,7 +15,10 @@ import { Req } from '@nestjs/common';
 
 @Controller('api/v1/customers')
 export class CustomersController {
-  constructor(private readonly customers: CustomersService) {}
+  constructor(
+    private readonly customers: CustomersService,
+    private readonly history: HistoryService,
+  ) {}
 
   @Post()
   async create(
@@ -35,6 +39,16 @@ export class CustomersController {
     );
     response.status(result.created ? 201 : 200);
     return result.customer;
+  }
+
+  @Get(':id/history')
+  historyPage(
+    @Req() request: PortalRequest,
+    @Param('id') id: string,
+    @Query('after') after?: string | string[],
+    @Query('limit') limit?: string | string[],
+  ): Promise<unknown> {
+    return this.history.page('customer', id, after, limit, request.correlationId);
   }
 
   @Get(':id')

@@ -67,6 +67,16 @@ flowchart LR
 
 Portal writes commit the record, field history, and an outbox row in one transaction. The worker delivers that row to Fake Salesforce and spends one token from the shared budget. Fake Salesforce posts a signed webhook back to the portal. The same inbound path accepts those webhooks and the reconciliation changes feed. A dropped webhook is recovered from the changes cursor, not by sending the payload again outside that path.
 
+## Local dashboard
+
+With `pnpm dev` running, open [http://localhost:3000/dashboard](http://localhost:3000/dashboard).
+
+The page is static HTML served by `portal-api`. It creates and edits portal contacts through `/api/v1`, creates and edits Fake Salesforce contacts through `/sf/v1`, and replaces the simulator config with `PUT /simulator/config`. Outage is the `outageEnabled` checkbox. Duplicate count is the extra copies field. Reorder posts event ids to `/simulator/reorder-deliveries`. Refresh reads sync health (including `checkpointCursor`), the outbox, portal contact history, and webhook deliveries. The page does not apply conflict rules, sign webhooks, or move the reconciliation cursor.
+
+Fake Salesforce allows browser calls from `localhost` and `127.0.0.1` only when `NODE_ENV` is not `production`. Set the actor, simulator token, and Fake Salesforce base URL at the top of the page. The default token is `local-simulator-token`.
+
+History reads are `GET /api/v1/contacts/:id/history` and `GET /api/v1/customers/:id/history`. `limit` defaults to 50 and accepts 1 through 100. `after` is the previous page's `nextCursor`. Rows are ordered by `appliedAt`, then `id`.
+
 ## HTTP
 
 Local actor header for portal data and sync routes: `x-actor-id`. Responses echo `x-correlation-id`.

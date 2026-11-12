@@ -7,6 +7,7 @@ import { ContactsController } from './contacts/contacts.controller';
 import { CustomersModule } from './customers/customers.module';
 import { CustomersController } from './customers/customers.controller';
 import { validatePortalApiEnv } from './env';
+import { DashboardModule } from './dashboard/dashboard.module';
 import { HealthModule } from './health/health.module';
 import { ActorMiddleware } from './http/actor.middleware';
 import { CorrelationMiddleware } from './http/correlation.middleware';
@@ -27,6 +28,7 @@ import { logging } from './logging';
     logging,
     ClockModule,
     HealthModule,
+    DashboardModule,
     CustomersModule,
     ContactsModule,
     WebhooksModule,

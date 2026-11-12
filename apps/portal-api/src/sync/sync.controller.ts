@@ -97,6 +97,7 @@ export function portalOpenApi(): OpenApiDocument {
     openapi: '3.0.3',
     info: { title: 'Portal API', version: '0.0.0' },
     paths: {
+      '/dashboard': { get: { summary: 'Local HTML dashboard. It calls these HTTP APIs.' } },
       '/health/live': { get: { summary: 'Process liveness. Does not touch the database.' } },
       '/health/ready': {
         get: { summary: 'Database connectivity. Sync lag does not fail readiness.' },
@@ -113,6 +114,8 @@ export function portalOpenApi(): OpenApiDocument {
         get: { summary: 'Read a contact.' },
         patch: { summary: 'Patch a contact.' },
       },
+      '/api/v1/customers/{id}/history': { get: { summary: 'Field history for a customer.' } },
+      '/api/v1/contacts/{id}/history': { get: { summary: 'Field history for a contact.' } },
       '/webhooks/salesforce': { post: { summary: 'Inbound Salesforce webhook.' } },
       '/api/v1/sync/health': { get: { summary: 'Sync view over portal state.' } },
       '/api/v1/sync/metrics': { get: { summary: 'Named sync measurements.' } },

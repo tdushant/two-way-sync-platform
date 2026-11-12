@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { Client } from 'pg';
 import type { ExternalApiBudget } from '../budget/external-api-budget';
 import type { Clock } from '../clock';
@@ -30,7 +31,13 @@ export interface ReconciliationMetrics {
   lastRunStatus: string | null;
 }
 
+interface ClaimedCommand {
+  id: string;
+  correlation_id: string;
+}
+
 export class ReconciliationWorker {
+  private readonly logger = new Logger(ReconciliationWorker.name);
   private timer: ReturnType<typeof setInterval> | undefined;
   private tail: Promise<void> = Promise.resolve();
 
@@ -49,12 +56,12 @@ export class ReconciliationWorker {
   ) {}
 
   async start(): Promise<void> {
-    await this.trigger();
+    await this.tick();
     if (this.timer !== undefined) {
       return;
     }
     this.timer = this.schedule(() => {
-      void this.trigger();
+      void this.tick();
     });
   }
 
@@ -76,6 +83,66 @@ export class ReconciliationWorker {
       () => undefined,
     );
     return run;
+  }
+
+  tick(): Promise<void> {
+    const run = this.tail.then(() => this.tickOnce());
+    this.tail = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  private async tickOnce(): Promise<void> {
+    const commands = await this.claimCommands();
+    try {
+      const pass = await this.pass();
+      if (commands.length > 0) {
+        await this.finishCommands(commands, pass.status, pass.error ?? null);
+      }
+    } catch (error) {
+      if (commands.length > 0) {
+        const reason = error instanceof Error ? error.name : 'failed';
+        await this.finishCommands(commands, 'FAILED', reason);
+      }
+      throw error;
+    }
+  }
+
+  private async claimCommands(): Promise<ClaimedCommand[]> {
+    return this.prisma.client.$queryRaw<ClaimedCommand[]>`
+      UPDATE sync_commands AS command
+      SET status = 'RUNNING'
+      WHERE command.id IN (
+        SELECT id
+        FROM sync_commands
+        WHERE status = 'PENDING' AND command = 'reconciliation'
+        ORDER BY requested_at
+        FOR UPDATE SKIP LOCKED
+        LIMIT 5
+      )
+      RETURNING id, correlation_id
+    `;
+  }
+
+  private async finishCommands(
+    commands: ClaimedCommand[],
+    status: 'SUCCEEDED' | 'FAILED',
+    error: string | null,
+  ): Promise<void> {
+    const completedAt = this.clock.now();
+    for (const command of commands) {
+      await this.prisma.client.$executeRaw`
+        UPDATE sync_commands
+        SET status = ${status}, error = ${error}, completed_at = ${completedAt}
+        WHERE id = ${command.id}::uuid AND status = 'RUNNING'
+      `;
+      this.logger.log({
+        correlationId: command.correlation_id,
+        message: 'reconciliation command finished',
+      });
+    }
   }
 
   async metrics(): Promise<ReconciliationMetrics> {

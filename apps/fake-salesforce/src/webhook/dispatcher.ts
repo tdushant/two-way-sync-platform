@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { readSimulatorConfig } from '../simulator/simulator-config';
@@ -20,6 +21,7 @@ export interface FlushResult {
 
 @Injectable()
 export class Dispatcher {
+  private readonly logger = new Logger(Dispatcher.name);
   private tail: Promise<void> = Promise.resolve();
 
   constructor(
@@ -95,11 +97,13 @@ export class Dispatcher {
     }
     const secret = this.config.getOrThrow<string>('WEBHOOK_HMAC_SECRET');
     const url = this.config.getOrThrow<string>('PORTAL_WEBHOOK_URL');
+    const correlationId = randomUUID();
     let result: WebhookPostResult;
     try {
       result = await this.client.post(url, raw, {
         'content-type': 'application/json',
         [SALESFORCE_SIGNATURE_HEADER]: signWebhookPayload(secret, raw),
+        'x-correlation-id': correlationId,
       });
     } catch {
       result = { timeout: true };
@@ -110,6 +114,12 @@ export class Dispatcher {
       result,
     });
     await this.finish(id, outcome);
+    const eventId = eventIdOf(payload);
+    this.logger.log({
+      correlationId,
+      ...(eventId === undefined ? {} : { eventId }),
+      message: `webhook delivery ${outcome.status}`,
+    });
     return outcome.status === 'DELIVERED';
   }
 
@@ -124,4 +134,12 @@ export class Dispatcher {
       },
     });
   }
+}
+
+function eventIdOf(payload: unknown): string | undefined {
+  if (typeof payload !== 'object' || payload === null) {
+    return undefined;
+  }
+  const value = Reflect.get(payload, 'eventId');
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
 }

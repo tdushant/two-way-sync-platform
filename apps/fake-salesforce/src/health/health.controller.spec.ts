@@ -36,4 +36,27 @@ describe('fake-salesforce health routes', () => {
     expect(response.status).toBe(503);
     expect(response.body).toEqual({ status: 'error' });
   });
+
+  it('answers /sf/v1/health from the same database probe', async () => {
+    await start(true);
+    const live = await request(app!.getHttpServer()).get('/sf/v1/health');
+    expect(live.status).toBe(200);
+    expect(live.body).toEqual({ status: 'ok' });
+    await app?.close();
+    await start(false);
+    const down = await request(app!.getHttpServer()).get('/sf/v1/health');
+    expect(down.status).toBe(503);
+    expect(down.body).toEqual({ status: 'error' });
+  });
+
+  it('serves the OpenAPI document and Swagger page', async () => {
+    await start(true);
+    const spec = await request(app!.getHttpServer()).get('/openapi.json');
+    expect(spec.status).toBe(200);
+    expect(spec.body.paths['/sf/v1/health']).toBeDefined();
+    const docs = await request(app!.getHttpServer()).get('/docs');
+    expect(docs.status).toBe(200);
+    expect(docs.text).toContain('/openapi.json');
+    expect(docs.text).toContain('swagger-ui');
+  });
 });

@@ -1,0 +1,24 @@
+{
+  "name": "@sync/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "e2e": "node prepare.mjs && node --experimental-vm-modules --disable-warning=ExperimentalWarning ./node_modules/jest/bin/jest.js --config jest.config.cjs --runInBand"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@nestjs/common": "catalog:",
+    "@nestjs/core": "catalog:",
+    "@nestjs/testing": "catalog:",
+    "@types/jest": "catalog:",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "@types/supertest": "catalog:",
+    "jest": "catalog:",
+    "pg": "catalog:",
+    "reflect-metadata": "catalog:",
+    "supertest": "catalog:",
+    "ts-jest": "catalog:",
+    "typescript": "catalog:"
+  }
+}

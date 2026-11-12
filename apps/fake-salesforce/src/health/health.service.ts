@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { pingPostgres } from './ping-postgres';
@@ -13,7 +14,7 @@ export class HealthService {
       await pingPostgres(this.config.getOrThrow<string>('SALESFORCE_DATABASE_URL'));
       return true;
     } catch {
-      this.logger.warn('Database readiness check failed');
+      this.logger.warn({ correlationId: randomUUID() }, 'Database readiness check failed');
       return false;
     }
   }

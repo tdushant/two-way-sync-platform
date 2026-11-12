@@ -86,7 +86,7 @@ export class OutboundWorker {
     }
     const timer = setInterval(() => {
       void this.flush().catch(() => {
-        this.logger.error({ message: 'outbound flush failed' });
+        this.logger.error({ correlationId: randomUUID(), message: 'outbound flush failed' });
       });
     }, POLL_MS);
     timer.unref();
@@ -170,23 +170,29 @@ export class OutboundWorker {
 
   private async deliver(row: Claimed): Promise<void> {
     const now = this.clock.now();
+    const correlationId = randomUUID();
     try {
       const prepared = await this.prepare(row);
       if (prepared.action === 'wait') {
-        await this.reschedule(row, prepared.reason, prepared.delayMs, now);
+        await this.reschedule(row, prepared.reason, prepared.delayMs, now, correlationId);
         return;
       }
       if (prepared.action === 'skip') {
         await this.finishSkipped(row, now);
+        this.logger.log({
+          correlationId,
+          operationId: row.operationId,
+          message: 'outbound skipped',
+        });
         return;
       }
       if (prepared.action === 'dead') {
-        await this.kill(row, prepared.reason, now);
+        await this.kill(row, prepared.reason, now, correlationId);
         return;
       }
       const decision = await this.budget.acquire(now, 'outbound');
       if (!decision.granted) {
-        await this.reschedule(row, 'quota', decision.retryAfterMs, now);
+        await this.reschedule(row, 'quota', decision.retryAfterMs, now, correlationId);
         return;
       }
       const result = await this.salesforce.send({
@@ -194,16 +200,22 @@ export class OutboundWorker {
         path: prepared.path,
         body: prepared.body,
         operationId: row.operationId,
-        correlationId: randomUUID(),
+        correlationId,
       });
-      await this.finishRemote(row, prepared.salesforceId, result, now);
+      await this.finishRemote(row, prepared.salesforceId, result, now, correlationId);
     } catch (error) {
       if (error instanceof SalesforceTransportError) {
-        await this.reschedule(row, error.reason, backoffMs(row.attempts, this.jitter()), now);
+        await this.reschedule(
+          row,
+          error.reason,
+          backoffMs(row.attempts, this.jitter()),
+          now,
+          correlationId,
+        );
         return;
       }
       if (error instanceof ExternalIdConflict) {
-        await this.kill(row, 'external_id_conflict', now);
+        await this.kill(row, 'external_id_conflict', now, correlationId);
         return;
       }
       throw error;
@@ -246,6 +258,7 @@ export class OutboundWorker {
     currentSalesforceId: string | null,
     result: SalesforceResult,
     now: Date,
+    correlationId: string,
   ): Promise<void> {
     const kind = classifyStatus(result.status);
     if (kind === 'retry') {
@@ -256,11 +269,11 @@ export class OutboundWorker {
         result.status === 429
           ? retryDelayMs(row.attempts, this.jitter(), result.retryAfterSeconds)
           : backoffMs(row.attempts, this.jitter());
-      await this.reschedule(row, `http_${result.status}`, delay, now);
+      await this.reschedule(row, `http_${result.status}`, delay, now, correlationId);
       return;
     }
     if (kind === 'dead') {
-      await this.kill(row, `http_${result.status}`, now);
+      await this.kill(row, `http_${result.status}`, now, correlationId);
       return;
     }
     const externalId =
@@ -271,13 +284,19 @@ export class OutboundWorker {
         'missing_external_id',
         backoffMs(row.attempts, this.jitter()),
         now,
+        correlationId,
       );
       return;
     }
-    await this.finishSent(row, externalId ?? null, now);
+    await this.finishSent(row, externalId ?? null, now, correlationId);
   }
 
-  private async finishSent(row: Claimed, externalId: string | null, now: Date): Promise<void> {
+  private async finishSent(
+    row: Claimed,
+    externalId: string | null,
+    now: Date,
+    correlationId: string,
+  ): Promise<void> {
     await this.prisma.client.$transaction(async (tx) => {
       if (row.eventType === 'created' && externalId !== null) {
         await this.storeExternalId(tx, row, externalId);
@@ -296,6 +315,11 @@ export class OutboundWorker {
         where: { id: row.id },
         data: { status: 'COMPLETED', leaseUntil: null, lastError: null, updatedAt: now },
       });
+    });
+    this.logger.log({
+      correlationId,
+      operationId: row.operationId,
+      message: 'outbound completed',
     });
   }
 
@@ -360,6 +384,7 @@ export class OutboundWorker {
     reason: string,
     delayMs: number,
     now: Date,
+    correlationId: string,
   ): Promise<void> {
     await this.prisma.client.outboxEvent.update({
       where: { id: row.id },
@@ -371,10 +396,15 @@ export class OutboundWorker {
         updatedAt: now,
       },
     });
-    this.logger.log({ operationId: row.operationId, outcome: reason });
+    this.logger.log({ correlationId, operationId: row.operationId, outcome: reason });
   }
 
-  private async kill(row: Claimed, reason: string, now: Date): Promise<void> {
+  private async kill(
+    row: Claimed,
+    reason: string,
+    now: Date,
+    correlationId: string,
+  ): Promise<void> {
     await this.prisma.client.$transaction(async (tx) => {
       await tx.outboxEvent.update({
         where: { id: row.id },
@@ -385,7 +415,7 @@ export class OutboundWorker {
         data: { status: 'FAILED' },
       });
     });
-    this.logger.log({ operationId: row.operationId, outcome: reason });
+    this.logger.log({ correlationId, operationId: row.operationId, outcome: reason });
   }
 
   private async loadEntity(row: Claimed): Promise<EntityState | undefined> {

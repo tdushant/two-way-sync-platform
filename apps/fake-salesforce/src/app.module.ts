@@ -3,6 +3,7 @@ import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { validateFakeSalesforceEnv } from './env';
 import { HealthModule } from './health/health.module';
+import { OpenApiModule } from './openapi/openapi.module';
 import { CorrelationMiddleware } from './http/correlation.middleware';
 import { SalesforceExceptionFilter } from './http/salesforce-exception.filter';
 import { logging } from './logging';
@@ -26,6 +27,7 @@ import { WebhookModule } from './webhook/webhook.module';
     PrismaModule,
     WebhookModule,
     HealthModule,
+    OpenApiModule,
     RecordsModule,
     SimulatorModule,
   ],

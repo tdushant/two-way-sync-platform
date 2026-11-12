@@ -153,3 +153,16 @@ model ReconciliationRun {
 
   @@map("reconciliation_runs")
 }
+
+model SyncCommand {
+  id            String    @id @db.Uuid
+  command       String
+  status        String
+  correlationId String    @map("correlation_id")
+  error         String?
+  requestedAt   DateTime  @map("requested_at") @db.Timestamptz(6)
+  completedAt   DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  @@index([status, requestedAt], map: "sync_commands_status_requested_idx")
+  @@map("sync_commands")
+}

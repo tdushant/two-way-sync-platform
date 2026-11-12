@@ -9,6 +9,8 @@
     "build": "pnpm -r --if-present build",
     "dev": "pnpm -r --parallel --if-present dev",
     "test": "pnpm -r --if-present test",
+    "test:e2e": "pnpm --filter @sync/e2e run e2e",
+    "ci": "pnpm lint && pnpm format:check && pnpm test && pnpm test:e2e && pnpm build",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

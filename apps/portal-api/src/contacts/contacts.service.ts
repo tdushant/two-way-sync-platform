@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { isUuid, type Contact, type ContactPatch, type CreateContact } from '@sync/contracts';
+import { Clock } from '../clock';
 import { PrismaService } from '../prisma/prisma.service';
 import { requestError } from '../http/portal-request.error';
 import { Ids } from '../sync/ids';
@@ -28,6 +29,7 @@ export class ContactsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ids: Ids,
+    private readonly clock: Clock,
   ) {}
 
   async create(
@@ -53,7 +55,7 @@ export class ContactsService {
           throw requestError(correlationId, 404, 'Customer not found');
         }
         const id = this.ids.entityId();
-        const now = new Date();
+        const now = this.clock.now();
         const stored = {
           customerId: body.customerId,
           fullName: body.fullName ?? null,
@@ -165,7 +167,7 @@ export class ContactsService {
       if (changes.length === 0) {
         return toContact(row);
       }
-      const now = new Date();
+      const now = this.clock.now();
       const next = row.rowVersion + 1n;
       const data: {
         customerId?: string;

@@ -24,6 +24,8 @@ const TIMESTAMP_COLUMNS = [
   ['sync_operations', 'expires_at'],
   ['reconciliation_runs', 'started_at'],
   ['reconciliation_runs', 'completed_at'],
+  ['sync_commands', 'requested_at'],
+  ['sync_commands', 'completed_at'],
   ['client_idempotency_keys', 'created_at'],
   ['api_quota_buckets', 'updated_at'],
   ['api_quota_buckets', 'blocked_until'],
@@ -85,6 +87,7 @@ describe('portal database schema', () => {
       'processed_events',
       'reconciliation_runs',
       'sync_checkpoints',
+      'sync_commands',
       'sync_operations',
     ]);
   });

@@ -162,6 +162,20 @@ model ReconciliationRun {
   @@map("reconciliation_runs")
 }
 
+// A row asks the worker for one reconciliation pass. It does not move the cursor.
+model SyncCommand {
+  id            String    @id @db.Uuid
+  command       String
+  status        String
+  correlationId String    @map("correlation_id")
+  error         String?
+  requestedAt   DateTime  @map("requested_at") @db.Timestamptz(6)
+  completedAt   DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  @@index([status, requestedAt], map: "sync_commands_status_requested_idx")
+  @@map("sync_commands")
+}
+
 // Shared integer-token bucket for every portal-worker replica. OD-QUOTA.
 model ApiQuotaBucket {
   bucket                     String    @id

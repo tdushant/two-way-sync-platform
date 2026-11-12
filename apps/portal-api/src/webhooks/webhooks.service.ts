@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { apiError, type CanonicalWebhook } from '@sync/contracts';
 import { Prisma } from '../../generated/prisma/client';
 import { PortalRequestError, requestError } from '../http/portal-request.error';
 import { PrismaService } from '../prisma/prisma.service';
 import { isPrismaError, lockContact, lockCustomer, shareCustomer } from '../sync/mutation';
+import { WebhookCounters } from '../sync/webhook-counters';
 import { decideInboundField, type FieldVerdict } from './decide';
 
 const DEFERRABLE = 'External mapping is not available';
@@ -36,7 +37,12 @@ export interface InboundResult {
 
 @Injectable()
 export class WebhooksService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(WebhooksService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly counters: WebhookCounters,
+  ) {}
 
   async receive(
     rawBody: Buffer,
@@ -53,9 +59,15 @@ export class WebhooksService {
     const payloadHash = createHash('sha256').update(rawBody).digest('hex');
     const now = new Date();
     try {
-      return await this.prisma.client.$transaction((tx) =>
+      const result = await this.prisma.client.$transaction((tx) =>
         this.apply(tx, event, recordVersion, payloadHash, now, correlationId),
       );
+      this.logger.log({
+        correlationId,
+        eventId: result.eventId,
+        message: `webhook ${result.outcome}`,
+      });
+      return result;
     } catch (error) {
       if (error instanceof DuplicateEventError) {
         return this.acknowledgeDuplicate(event.eventId, payloadHash, correlationId);
@@ -220,6 +232,8 @@ export class WebhooksService {
         ),
       );
     }
+    this.counters.duplicates += 1;
+    this.logger.log({ correlationId, eventId, message: 'webhook duplicate' });
     return { eventId, outcome: 'duplicate' };
   }
 

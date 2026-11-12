@@ -84,6 +84,9 @@ describe('portal inbound salesforce webhook', () => {
     expect((await post(app, raw)).status).toBe(200);
     const replay = await post(app, raw);
     expect(replay.status).toBe(200);
+    const beforeMetrics = await request(app.getHttpServer())
+      .get('/api/v1/sync/metrics')
+      .set('x-actor-id', ACTOR);
     expect(replay.body.outcome).toBe('duplicate');
     const third = await post(app, raw);
     expect(third.status).toBe(200);
@@ -102,6 +105,14 @@ describe('portal inbound salesforce webhook', () => {
     const row = await prisma.client.customer.findUniqueOrThrow({ where: { id: customer.id } });
     expect(row.name).toBe('Once');
     expect(await prisma.client.processedEvent.count({ where: { eventId } })).toBe(1);
+    const afterMetrics = await request(app.getHttpServer())
+      .get('/api/v1/sync/metrics')
+      .set('x-actor-id', ACTOR);
+    expect(beforeMetrics.status).toBe(200);
+    expect(afterMetrics.status).toBe(200);
+    expect(afterMetrics.body.webhook_duplicates_total).toBe(
+      beforeMetrics.body.webhook_duplicates_total + 1,
+    );
   });
 
   it('applies one of two concurrent deliveries of the same event', async () => {
@@ -165,6 +176,9 @@ describe('portal inbound salesforce webhook', () => {
       recordVersion: 2,
       occurredAt: '2026-11-12T00:00:00.000Z',
     });
+    const beforeMetrics = await request(app.getHttpServer())
+      .get('/api/v1/sync/metrics')
+      .set('x-actor-id', ACTOR);
     const missing = await request(app.getHttpServer())
       .post('/webhooks/salesforce')
       .set('Content-Type', 'application/json')
@@ -184,6 +198,14 @@ describe('portal inbound salesforce webhook', () => {
     const rejected = await post(app, unknown);
     expect(rejected.status).toBe(400);
     expect(rejected.body.code).toBe('unknown_field');
+    const afterMetrics = await request(app.getHttpServer())
+      .get('/api/v1/sync/metrics')
+      .set('x-actor-id', ACTOR);
+    expect(beforeMetrics.status).toBe(200);
+    expect(afterMetrics.status).toBe(200);
+    expect(afterMetrics.body.webhook_invalid_signature_total).toBe(
+      beforeMetrics.body.webhook_invalid_signature_total + 2,
+    );
     const row = await prisma.client.customer.findUniqueOrThrow({ where: { id: customer.id } });
     expect(row.name).toBe('Untouched');
     expect(

@@ -1,0 +1,29 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: docker compose up -d --wait
+      - run: pnpm --filter portal-api exec prisma migrate deploy
+        env:
+          PORTAL_DATABASE_URL: postgresql://portal:portal@127.0.0.1:5434/portal
+      - run: pnpm --filter fake-salesforce exec prisma migrate deploy
+        env:
+          SALESFORCE_DATABASE_URL: postgresql://salesforce:salesforce@127.0.0.1:5433/salesforce
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm test
+      - run: pnpm test:e2e
+      - run: pnpm build

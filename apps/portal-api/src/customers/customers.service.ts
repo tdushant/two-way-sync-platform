@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { isUuid, type CreateCustomer, type Customer, type CustomerPatch } from '@sync/contracts';
+import { Clock } from '../clock';
 import { PrismaService } from '../prisma/prisma.service';
 import { requestError } from '../http/portal-request.error';
 import { Ids } from '../sync/ids';
@@ -18,6 +19,7 @@ export class CustomersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ids: Ids,
+    private readonly clock: Clock,
   ) {}
 
   async create(
@@ -41,7 +43,7 @@ export class CustomersService {
           };
         }
         const id = this.ids.entityId();
-        const now = new Date();
+        const now = this.clock.now();
         const stored = {
           name: body.name,
           status: body.status ?? null,
@@ -131,7 +133,7 @@ export class CustomersService {
       if (changes.length === 0) {
         return toCustomer(row);
       }
-      const now = new Date();
+      const now = this.clock.now();
       const next = row.rowVersion + 1n;
       const data: {
         name?: string;

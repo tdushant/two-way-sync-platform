@@ -37,7 +37,7 @@ export class DataPlaneInterceptor implements NestInterceptor {
     const request = http.getRequest<SalesforceRequest>();
     const response = http.getResponse<SalesforceResponse>();
     const path = requestPath(request.url);
-    if (!path.startsWith('/sf/v1')) {
+    if (!path.startsWith('/sf/v1') || path === '/sf/v1/health') {
       return next.handle();
     }
     return from(this.admit(request, response)).pipe(

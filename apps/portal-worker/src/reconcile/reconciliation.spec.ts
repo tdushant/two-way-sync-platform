@@ -271,6 +271,25 @@ describe('reconciliation worker', () => {
     expect(await contactCity(prisma, recordId)).toBe('Lyon');
   });
 
+  it('runs a requested reconciliation pass and leaves an empty cursor where it was', async () => {
+    const id = randomUUID();
+    const correlationId = '6b1f0a2e-7c10-4d0a-9a1e-555555555555';
+    await prisma.client.$executeRaw`
+      INSERT INTO sync_commands (id, command, status, correlation_id, requested_at)
+      VALUES (${id}::uuid, 'reconciliation', 'PENDING', ${correlationId}, ${clock.now()})
+    `;
+    try {
+      await worker(new ScriptedFeed([])).tick();
+      const rows = await prisma.client.$queryRaw<Array<{ status: string; error: string | null }>>`
+        SELECT status, error FROM sync_commands WHERE id = ${id}::uuid
+      `;
+      expect(rows[0]).toEqual({ status: 'SUCCEEDED', error: null });
+      expect(await cursorOf(prisma)).toBeNull();
+    } finally {
+      await prisma.client.$executeRaw`DELETE FROM sync_commands WHERE id = ${id}::uuid`;
+    }
+  });
+
   it('shares one cursor across two worker instances', async () => {
     const recordId = await insertContact(prisma, clock, { city: 'Old' });
     const feed = new ScriptedFeed([
